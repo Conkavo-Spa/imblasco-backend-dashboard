@@ -138,4 +138,5 @@ conversationMailDashSchema.plugin(mongoosePaginate);
 const ConversationMailDash = mongoose.model('ConversationMailDash', conversationMailDashSchema);
 
 export default ConversationMailDash;
+export { conversationMailDashSchema };
 

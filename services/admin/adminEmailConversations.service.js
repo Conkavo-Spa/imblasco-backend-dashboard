@@ -1,11 +1,11 @@
-import ConversationMailDash from '../../models/ConversationMailDash.js';
+import MailThreads from '../../models/MailThreads.js';
 
 export default class AdminEmailConversationsService {
     getAllEmailConversations = async (options = {}) => {
         try {
             const { page = 1, limit = 10 } = options;
 
-            const result = await ConversationMailDash.paginate(
+            const result = await MailThreads.paginate(
                 { channel: 'email' },
                 {
                     page,
@@ -35,7 +35,7 @@ export default class AdminEmailConversationsService {
                 };
             }
 
-            const updated = await ConversationMailDash.findOneAndUpdate(
+            const updated = await MailThreads.findOneAndUpdate(
                 { _id: conversationId, 'messages._id': messageId },
                 { $set: { 'messages.$.feedback': text } },
                 { new: true }
