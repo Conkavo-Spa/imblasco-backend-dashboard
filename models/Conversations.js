@@ -143,3 +143,4 @@ conversationSchema.plugin(mongoosePaginate);
 const Conversations = mongoose.model('Conversation', conversationSchema);
 
 export default Conversations;
+export { conversationSchema };

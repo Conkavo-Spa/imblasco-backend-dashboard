@@ -1,4 +1,9 @@
 import Conversations from '../../models/Conversations.js';
+import ChatThreads from '../../models/ChatThreads.js';
+
+function getModelForChannel(channel) {
+    return channel === 'chat' ? ChatThreads : Conversations;
+}
 
 export default class AdminConversationsService {
     getAllConversations = async (options = {}) => {
@@ -6,8 +11,9 @@ export default class AdminConversationsService {
             const { page = 1, limit = 10, channel = 'email' } = options;
 
             const filter = { channel };
+            const Model = getModelForChannel(channel);
 
-            const result = await Conversations.paginate(filter, {
+            const result = await Model.paginate(filter, {
                 page,
                 limit,
                 sort: { 'summary.lastMessageAt': -1, createdAt: -1 },
@@ -35,11 +41,18 @@ export default class AdminConversationsService {
                 };
             }
 
-            const updated = await Conversations.findByIdAndUpdate(
+            let updated = await ChatThreads.findByIdAndUpdate(
                 conversationId,
                 { $set: { feedback: text } },
                 { new: true, runValidators: true }
             );
+            if (!updated) {
+                updated = await Conversations.findByIdAndUpdate(
+                    conversationId,
+                    { $set: { feedback: text } },
+                    { new: true, runValidators: true }
+                );
+            }
 
             if (!updated) {
                 return {
@@ -70,11 +83,18 @@ export default class AdminConversationsService {
                 };
             }
 
-            const result = await Conversations.findOneAndUpdate(
+            let result = await ChatThreads.findOneAndUpdate(
                 { _id: conversationId, 'messages._id': messageId },
                 { $set: { 'messages.$.feedback': text } },
                 { new: true }
             );
+            if (!result) {
+                result = await Conversations.findOneAndUpdate(
+                    { _id: conversationId, 'messages._id': messageId },
+                    { $set: { 'messages.$.feedback': text } },
+                    { new: true }
+                );
+            }
 
             if (!result) {
                 return {
