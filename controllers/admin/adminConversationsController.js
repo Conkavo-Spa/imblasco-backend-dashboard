@@ -82,4 +82,18 @@ export default class AdminConversationsController {
             });
         }
     };
+
+    deleteConversation = async (req, res) => {
+        try {
+            const { id } = req.params;
+            const response = await AdminConversations.deleteConversation(id);
+            return res.status(response.success ? 200 : 404).json(response);
+        } catch (error) {
+            console.error('❌ Controller - error al borrar conversación:', error);
+            return res.status(500).json({
+                success: false,
+                message: error.message || 'Error inesperado en el servidor',
+            });
+        }
+    };
 }

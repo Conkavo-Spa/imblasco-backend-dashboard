@@ -155,4 +155,30 @@ export default class AdminConversationsService {
             throw new Error('No se pudo guardar "Bien respondido"');
         }
     };
+
+    deleteConversation = async (conversationId) => {
+        try {
+            // Intentar borrar en chatthreads (db stockf) y si no, en conversationdash
+            let deleted = await ChatThreads.findByIdAndDelete(conversationId);
+            if (!deleted) {
+                deleted = await Conversations.findByIdAndDelete(conversationId);
+            }
+
+            if (!deleted) {
+                return {
+                    success: false,
+                    message: 'Conversación no encontrada',
+                };
+            }
+
+            return {
+                success: true,
+                message: 'Conversación eliminada',
+                data: { _id: deleted._id },
+            };
+        } catch (error) {
+            console.error('❌ Servicio - error al borrar conversación:', error);
+            throw new Error('No se pudo borrar la conversación');
+        }
+    };
 }

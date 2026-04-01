@@ -8,5 +8,6 @@ router.get('/conversations', adminConversationsController.getAllConversations);
 router.put('/conversations/:id/feedback', adminConversationsController.setConversationFeedback);
 router.put('/conversations/:id/messages/:messageId/feedback', adminConversationsController.setMessageFeedback);
 router.put('/conversations/:id/good-answer', adminConversationsController.setConversationGoodAnswer);
+router.delete('/conversations/:id', adminConversationsController.deleteConversation);
 
 export default router;
