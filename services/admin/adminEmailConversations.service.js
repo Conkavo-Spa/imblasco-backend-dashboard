@@ -25,6 +25,41 @@ export default class AdminEmailConversationsService {
         }
     };
 
+    deleteEmailConversation = async (conversationId) => {
+        try {
+            const deleted = await MailThreads.findByIdAndDelete(conversationId);
+            if (!deleted) {
+                return { success: false, message: 'Conversación no encontrada' };
+            }
+            return { success: true, message: 'Conversación eliminada correctamente' };
+        } catch (error) {
+            console.error('❌ Servicio - error al eliminar email:', error);
+            throw new Error('No se pudo eliminar la conversación');
+        }
+    };
+
+    setEmailConversationGoodAnswer = async (conversationId, isGood) => {
+        try {
+            const val = isGood === true;
+            const updated = await MailThreads.findByIdAndUpdate(
+                conversationId,
+                { $set: { 'summary.hasGoodAnswer': val, isGoodAnswer: val } },
+                { new: true }
+            );
+            if (!updated) {
+                return { success: false, message: 'Conversación no encontrada' };
+            }
+            return {
+                success: true,
+                message: 'Actualizado',
+                data: { _id: updated._id, isGoodAnswer: val },
+            };
+        } catch (error) {
+            console.error('❌ Servicio - error al guardar bien respondido (email):', error);
+            throw new Error('No se pudo guardar "Bien respondido"');
+        }
+    };
+
     setEmailMessageFeedback = async (conversationId, messageId, feedback) => {
         try {
             const text = String(feedback ?? '').trim();

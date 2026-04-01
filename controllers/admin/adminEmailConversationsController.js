@@ -23,6 +23,35 @@ export default class AdminEmailConversationsController {
         }
     };
 
+    deleteEmailConversation = async (req, res) => {
+        try {
+            const { id } = req.params;
+            const response = await AdminEmailConversations.deleteEmailConversation(id);
+            return res.status(response.success ? 200 : 400).json(response);
+        } catch (error) {
+            console.error('❌ Controller - error al eliminar email:', error);
+            return res.status(500).json({
+                success: false,
+                message: error.message || 'Error inesperado en el servidor',
+            });
+        }
+    };
+
+    setEmailConversationGoodAnswer = async (req, res) => {
+        try {
+            const { id } = req.params;
+            const { isGood } = req.body || {};
+            const response = await AdminEmailConversations.setEmailConversationGoodAnswer(id, isGood);
+            return res.status(response.success ? 200 : 400).json(response);
+        } catch (error) {
+            console.error('❌ Controller - error al guardar bien respondido (email):', error);
+            return res.status(500).json({
+                success: false,
+                message: error.message || 'Error inesperado en el servidor',
+            });
+        }
+    };
+
     setEmailMessageFeedback = async (req, res) => {
         try {
             const { id, messageId } = req.params;
