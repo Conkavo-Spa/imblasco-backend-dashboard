@@ -48,8 +48,16 @@ const conversationSchema = new Schema(
             lastMessagePreview: { type: String, trim: true, default: '' },
             lastMessageAt: { type: Date, default: null, index: true },
             messageCount: { type: Number, default: 0 },
-            unreadCount: { type: Number, default: 0 }
+            unreadCount: { type: Number, default: 0 },
+
+            // Campos adicionales para dashboard (aditivos)
+            hasFeedback: { type: Boolean, default: false },
+            lastFeedbackText: { type: String, trim: false, default: '' },
+            hasGoodAnswer: { type: Boolean, default: false },
         },
+
+        // Marca a nivel conversación (aditivo)
+        isGoodAnswer: { type: Boolean, default: false },
 
         tags: { type: [String], default: [] },
 

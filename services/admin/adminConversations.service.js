@@ -85,13 +85,13 @@ export default class AdminConversationsService {
 
             let result = await ChatThreads.findOneAndUpdate(
                 { _id: conversationId, 'messages._id': messageId },
-                { $set: { 'messages.$.feedback': text } },
+                { $set: { 'messages.$.feedback': text, 'summary.hasFeedback': true, 'summary.lastFeedbackText': text } },
                 { new: true }
             );
             if (!result) {
                 result = await Conversations.findOneAndUpdate(
                     { _id: conversationId, 'messages._id': messageId },
-                    { $set: { 'messages.$.feedback': text } },
+                    { $set: { 'messages.$.feedback': text, 'summary.hasFeedback': true, 'summary.lastFeedbackText': text } },
                     { new: true }
                 );
             }
@@ -117,6 +117,42 @@ export default class AdminConversationsService {
         } catch (error) {
             console.error('❌ Servicio - error al guardar feedback del mensaje:', error);
             throw new Error('No se pudo guardar el feedback del mensaje');
+        }
+    };
+
+    setConversationGoodAnswer = async (conversationId, isGood) => {
+        try {
+            const val = isGood === true;
+
+            let updated = await ChatThreads.findByIdAndUpdate(
+                conversationId,
+                { $set: { isGoodAnswer: val, 'summary.hasGoodAnswer': val } },
+                { new: true, runValidators: true }
+            );
+            if (!updated) {
+                updated = await Conversations.findByIdAndUpdate(
+                    conversationId,
+                    { $set: { isGoodAnswer: val, 'summary.hasGoodAnswer': val } },
+                    { new: true, runValidators: true }
+                );
+            }
+
+            if (!updated) {
+                return {
+                    success: false,
+                    message: 'Conversación no encontrada',
+                };
+            }
+
+            return {
+                success: true,
+                message: 'Actualizado',
+                data: { _id: updated._id, isGoodAnswer: val },
+            };
+
+        } catch (error) {
+            console.error('❌ Servicio - error al guardar bien respondido:', error);
+            throw new Error('No se pudo guardar "Bien respondido"');
         }
     };
 }

@@ -63,4 +63,23 @@ export default class AdminConversationsController {
             });
         }
     };
+
+    setConversationGoodAnswer = async (req, res) => {
+        try {
+            const { id } = req.params;
+            const { isGood } = req.body || {};
+
+            const response = await AdminConversations.setConversationGoodAnswer(id, isGood);
+
+            return res.status(response.success ? 200 : 400).json(response);
+
+        } catch (error) {
+            console.error('❌ Controller - error al guardar bien respondido:', error);
+
+            return res.status(500).json({
+                success: false,
+                message: error.message || 'Error inesperado en el servidor',
+            });
+        }
+    };
 }
