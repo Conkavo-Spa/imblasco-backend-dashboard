@@ -4,6 +4,7 @@ import AdminConversationsController from '../../controllers/admin/adminConversat
 const router = express.Router();
 const adminConversationsController = new AdminConversationsController();
 
+router.get('/conversations/export', adminConversationsController.exportConversations);
 router.get('/conversations', adminConversationsController.getAllConversations);
 router.put('/conversations/:id/feedback', adminConversationsController.setConversationFeedback);
 router.put('/conversations/:id/messages/:messageId/feedback', adminConversationsController.setMessageFeedback);

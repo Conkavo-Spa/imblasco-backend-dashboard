@@ -181,4 +181,26 @@ export default class AdminConversationsService {
             throw new Error('No se pudo borrar la conversación');
         }
     };
+
+    exportConversations = async (options = {}) => {
+        try {
+            const { from, to, channel = 'chat' } = options;
+            const Model = getModelForChannel(channel);
+            const filter = { channel };
+            if (from || to) {
+                filter.createdAt = {};
+                if (from) filter.createdAt.$gte = new Date(from);
+                if (to) {
+                    const toDate = new Date(to);
+                    toDate.setHours(23, 59, 59, 999);
+                    filter.createdAt.$lte = toDate;
+                }
+            }
+            const docs = await Model.find(filter).sort({ createdAt: -1 }).lean();
+            return { success: true, data: docs };
+        } catch (error) {
+            console.error('❌ Servicio - error al exportar conversaciones:', error);
+            throw new Error('No se pudieron exportar las conversaciones');
+        }
+    };
 }

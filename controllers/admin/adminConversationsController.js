@@ -83,6 +83,20 @@ export default class AdminConversationsController {
         }
     };
 
+    exportConversations = async (req, res) => {
+        try {
+            const { from, to, channel } = req.query;
+            const response = await AdminConversations.exportConversations({ from, to, channel: channel || 'chat' });
+            return res.status(200).json(response);
+        } catch (error) {
+            console.error('❌ Controller - error al exportar conversaciones:', error);
+            return res.status(500).json({
+                success: false,
+                message: error.message || 'Error inesperado en el servidor',
+            });
+        }
+    };
+
     deleteConversation = async (req, res) => {
         try {
             const { id } = req.params;
