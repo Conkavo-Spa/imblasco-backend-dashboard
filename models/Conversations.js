@@ -54,10 +54,12 @@ const conversationSchema = new Schema(
             hasFeedback: { type: Boolean, default: false },
             lastFeedbackText: { type: String, trim: false, default: '' },
             hasGoodAnswer: { type: Boolean, default: false },
+            isCorrected: { type: Boolean, default: false },
         },
 
         // Marca a nivel conversación (aditivo)
         isGoodAnswer: { type: Boolean, default: false },
+        isCorrected: { type: Boolean, default: false },
 
         tags: { type: [String], default: [] },
 
