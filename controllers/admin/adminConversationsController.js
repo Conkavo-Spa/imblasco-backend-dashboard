@@ -83,6 +83,21 @@ export default class AdminConversationsController {
         }
     };
 
+    setConversationCorrected = async (req, res) => {
+        try {
+            const { id } = req.params;
+            const { isCorrected } = req.body || {};
+            const response = await AdminConversations.setConversationCorrected(id, isCorrected);
+            return res.status(response.success ? 200 : 400).json(response);
+        } catch (error) {
+            console.error('❌ Controller - error al guardar corregida:', error);
+            return res.status(500).json({
+                success: false,
+                message: error.message || 'Error inesperado en el servidor',
+            });
+        }
+    };
+
     exportConversations = async (req, res) => {
         try {
             const { from, to, channel } = req.query;

@@ -182,6 +182,31 @@ export default class AdminConversationsService {
         }
     };
 
+    setConversationCorrected = async (conversationId, isCorrected) => {
+        try {
+            const val = isCorrected === true;
+            let updated = await ChatThreads.findByIdAndUpdate(
+                conversationId,
+                { $set: { 'summary.isCorrected': val, isCorrected: val } },
+                { new: true }
+            );
+            if (!updated) {
+                updated = await Conversations.findByIdAndUpdate(
+                    conversationId,
+                    { $set: { 'summary.isCorrected': val, isCorrected: val } },
+                    { new: true }
+                );
+            }
+            if (!updated) {
+                return { success: false, message: 'Conversación no encontrada' };
+            }
+            return { success: true, message: 'Actualizado', data: { _id: updated._id, isCorrected: val } };
+        } catch (error) {
+            console.error('❌ Servicio - error al guardar corregida:', error);
+            throw new Error('No se pudo guardar "Corregida"');
+        }
+    };
+
     exportConversations = async (options = {}) => {
         try {
             const { from, to, channel = 'chat' } = options;
