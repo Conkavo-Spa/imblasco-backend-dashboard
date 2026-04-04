@@ -55,6 +55,7 @@ const conversationSchema = new Schema(
             lastFeedbackText: { type: String, trim: false, default: '' },
             hasGoodAnswer: { type: Boolean, default: false },
             isCorrected: { type: Boolean, default: false },
+            lastSeenIp: { type: String, default: null },
         },
 
         // Marca a nivel conversación (aditivo)
