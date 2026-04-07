@@ -1,11 +1,11 @@
-import MailThreads from '../../models/MailThreads.js';
+import ConversationMailDash from '../../models/ConversationMailDash.js';
 
 export default class AdminEmailConversationsService {
     getAllEmailConversations = async (options = {}) => {
         try {
             const { page = 1, limit = 10 } = options;
 
-            const result = await MailThreads.paginate(
+            const result = await ConversationMailDash.paginate(
                 { channel: 'email' },
                 {
                     page,
@@ -27,7 +27,7 @@ export default class AdminEmailConversationsService {
 
     deleteEmailConversation = async (conversationId) => {
         try {
-            const deleted = await MailThreads.findByIdAndDelete(conversationId);
+            const deleted = await ConversationMailDash.findByIdAndDelete(conversationId);
             if (!deleted) {
                 return { success: false, message: 'Conversación no encontrada' };
             }
@@ -41,7 +41,7 @@ export default class AdminEmailConversationsService {
     setEmailConversationGoodAnswer = async (conversationId, isGood) => {
         try {
             const val = isGood === true;
-            const updated = await MailThreads.findByIdAndUpdate(
+            const updated = await ConversationMailDash.findByIdAndUpdate(
                 conversationId,
                 { $set: { 'summary.hasGoodAnswer': val, isGoodAnswer: val } },
                 { new: true }
@@ -70,7 +70,7 @@ export default class AdminEmailConversationsService {
                 };
             }
 
-            const updated = await MailThreads.findOneAndUpdate(
+            const updated = await ConversationMailDash.findOneAndUpdate(
                 { _id: conversationId, 'messages._id': messageId },
                 { $set: { 'messages.$.feedback': text } },
                 { new: true }
