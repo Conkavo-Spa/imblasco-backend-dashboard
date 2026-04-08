@@ -55,9 +55,11 @@ const conversationMailDashSchema = new Schema(
             messageCount: { type: Number, default: 0 },
             unreadCount: { type: Number, default: 0 },
             hasGoodAnswer: { type: Boolean, default: false },
+            isCorrected: { type: Boolean, default: false },
         },
 
         isGoodAnswer: { type: Boolean, default: false },
+        isCorrected: { type: Boolean, default: false },
 
         tags: { type: [String], default: [] },
 

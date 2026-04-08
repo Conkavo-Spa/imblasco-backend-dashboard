@@ -60,6 +60,28 @@ export default class AdminEmailConversationsService {
         }
     };
 
+    setEmailConversationCorrected = async (conversationId, isCorrected) => {
+        try {
+            const val = isCorrected === true;
+            const updated = await ConversationMailDash.findByIdAndUpdate(
+                conversationId,
+                { $set: { 'summary.isCorrected': val, isCorrected: val } },
+                { new: true }
+            );
+            if (!updated) {
+                return { success: false, message: 'Conversación no encontrada' };
+            }
+            return {
+                success: true,
+                message: 'Actualizado',
+                data: { _id: updated._id, isCorrected: val },
+            };
+        } catch (error) {
+            console.error('❌ Servicio - error al guardar corregido (email):', error);
+            throw new Error('No se pudo guardar "Corregido"');
+        }
+    };
+
     setEmailMessageFeedback = async (conversationId, messageId, feedback) => {
         try {
             const text = String(feedback ?? '').trim();

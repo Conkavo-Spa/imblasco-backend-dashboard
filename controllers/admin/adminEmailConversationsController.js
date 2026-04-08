@@ -52,6 +52,21 @@ export default class AdminEmailConversationsController {
         }
     };
 
+    setEmailConversationCorrected = async (req, res) => {
+        try {
+            const { id } = req.params;
+            const { isCorrected } = req.body || {};
+            const response = await AdminEmailConversations.setEmailConversationCorrected(id, isCorrected);
+            return res.status(response.success ? 200 : 400).json(response);
+        } catch (error) {
+            console.error('❌ Controller - error al guardar corregido (email):', error);
+            return res.status(500).json({
+                success: false,
+                message: error.message || 'Error inesperado en el servidor',
+            });
+        }
+    };
+
     setEmailMessageFeedback = async (req, res) => {
         try {
             const { id, messageId } = req.params;
