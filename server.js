@@ -55,9 +55,11 @@ app.use('/uploads', express.static(path.join(process.cwd(), 'public/uploads')));
 
 import AdminConversationsRoutes from './routes/admin/adminConversationsRoutes.js';
 import AdminEmailConversationsRoutes from './routes/admin/adminEmailConversationsRoutes.js';
+import AdminConciliationRoutes from './routes/admin/adminConciliationRoutes.js';
 
 app.use('/api', AdminConversationsRoutes);
 app.use('/api', AdminEmailConversationsRoutes);
+app.use('/api', AdminConciliationRoutes);
 
 // Ruta de prueba
 app.get('/api/health', (req, res) => {
