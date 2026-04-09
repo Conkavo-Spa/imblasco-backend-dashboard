@@ -90,8 +90,30 @@ export default class AdminConciliationService {
                           amount: primary.amount,
                           currency: primary.currency,
                           post_date: primary.post_date,
+                          transaction_date: primary.transaction_date ?? null,
                           description: primary.description ?? null,
                           type: primary.type ?? null,
+                          comment: primary.comment ?? null,
+                          reference_id: primary.reference_id ?? null,
+                          document_number: primary.document_number ?? null,
+                          sender_account: primary.sender_account
+                              ? {
+                                    holder_id: primary.sender_account.holder_id ?? null,
+                                    holder_name: primary.sender_account.holder_name ?? null,
+                                    number: primary.sender_account.number ?? null,
+                                    institution_name:
+                                        primary.sender_account.institution?.name ?? null,
+                                }
+                              : null,
+                          recipient_account: primary.recipient_account
+                              ? {
+                                    holder_id: primary.recipient_account.holder_id ?? null,
+                                    holder_name: primary.recipient_account.holder_name ?? null,
+                                    number: primary.recipient_account.number ?? null,
+                                    institution_name:
+                                        primary.recipient_account.institution?.name ?? null,
+                                }
+                              : null,
                       }
                     : null,
             },
