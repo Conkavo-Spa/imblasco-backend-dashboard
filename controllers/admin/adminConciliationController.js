@@ -9,12 +9,21 @@ const adminConciliationService = new AdminConciliationService();
 export default class AdminConciliationController {
     /**
      * GET /api/conciliations/cotizaciones/:cotizacionId/payment-status
+     * Query: fecha=YYYY-MM-DD, monto=entero, hora=opcional (desde el front; el match usa fecha+monto vs Fintoc).
      */
     getQuotePaymentStatus = async (req, res) => {
         try {
             const { cotizacionId } = req.params;
+            const fecha = req.query.fecha != null ? String(req.query.fecha) : '';
+            const monto = req.query.monto;
+            const hora = req.query.hora != null ? String(req.query.hora) : '';
 
-            const result = await adminConciliationService.checkQuotePaymentStatus(cotizacionId);
+            const result = await adminConciliationService.checkQuotePaymentStatus(
+                cotizacionId,
+                fecha,
+                monto,
+                hora
+            );
 
             if (!result.success) {
                 const status =

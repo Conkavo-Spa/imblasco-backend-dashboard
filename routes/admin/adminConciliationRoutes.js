@@ -5,7 +5,7 @@ const router = express.Router();
 const controller = new AdminConciliationController();
 
 /**
- * Conciliación bancaria (cotización vs movimientos Fintoc).
+ * Conciliación bancaria: query fecha, monto, hora (opcional) + Fintoc.
  */
 router.get(
     '/conciliations/cotizaciones/:cotizacionId/payment-status',

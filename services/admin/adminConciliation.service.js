@@ -1,5 +1,4 @@
 import dayjs from 'dayjs';
-import { COTIZACIONES_SEED } from '../../data/cotizacionesSeed.js';
 import {
     CONCILIATION_CODES,
 } from '../../constants/adminConciliation.constants.js';
@@ -9,17 +8,23 @@ import {
     filterMatchingDeposits,
 } from '../../libs/fintocClient.js';
 
+function isValidYmd(s) {
+    if (typeof s !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
+    const d = dayjs(s);
+    return d.isValid() && d.format('YYYY-MM-DD') === s;
+}
+
 /**
- * Lógica de negocio: conciliar cotizaciones (catálogo seed) contra movimientos Fintoc.
+ * Conciliación: datos de cotización vienen del cliente; Fintoc aporta movimientos reales.
  */
 export default class AdminConciliationService {
     /**
-     * Comprueba si existe un abono en Fintoc que coincida con monto y fecha contable de la cotización.
-     *
      * @param {string} cotizacionId - ej. COT-001
-     * @returns {Promise<object>}
+     * @param {string} fechaYmd - YYYY-MM-DD (fecha contable esperada)
+     * @param {number} monto - entero positivo (ej. CLP)
+     * @param {string} [hora] - informativo (UI); no usado en match Fintoc por ahora
      */
-    checkQuotePaymentStatus = async (cotizacionId) => {
+    checkQuotePaymentStatus = async (cotizacionId, fechaYmd, monto, hora) => {
         const id = String(cotizacionId ?? '').trim();
         if (!id) {
             return {
@@ -29,14 +34,29 @@ export default class AdminConciliationService {
             };
         }
 
-        const cotizacion = COTIZACIONES_SEED.find((c) => c.id === id);
-        if (!cotizacion) {
+        const fecha = typeof fechaYmd === 'string' ? fechaYmd.trim() : '';
+        if (!isValidYmd(fecha)) {
             return {
                 success: false,
-                code: CONCILIATION_CODES.NOT_FOUND,
-                message: 'Cotización no encontrada',
+                code: CONCILIATION_CODES.INVALID_PARAMS,
+                message: 'fecha inválida: use YYYY-MM-DD',
             };
         }
+
+        const m =
+            typeof monto === 'number'
+                ? monto
+                : Number.parseInt(String(monto ?? '').trim(), 10);
+        if (!Number.isInteger(m) || m <= 0) {
+            return {
+                success: false,
+                code: CONCILIATION_CODES.INVALID_PARAMS,
+                message: 'monto inválido: entero positivo requerido',
+            };
+        }
+
+        const horaStr =
+            hora != null && String(hora).trim() !== '' ? String(hora).trim() : null;
 
         const cfg = getFintocConfigFromEnv();
         if (!cfg) {
@@ -48,8 +68,8 @@ export default class AdminConciliationService {
             };
         }
 
-        const since = cotizacion.fecha;
-        const untilExclusive = dayjs(cotizacion.fecha).add(1, 'day').format('YYYY-MM-DD');
+        const since = fecha;
+        const untilExclusive = dayjs(fecha).add(1, 'day').format('YYYY-MM-DD');
 
         let movements;
         try {
@@ -63,11 +83,7 @@ export default class AdminConciliationService {
             };
         }
 
-        const candidates = filterMatchingDeposits(
-            movements,
-            cotizacion.monto,
-            cotizacion.fecha
-        );
+        const candidates = filterMatchingDeposits(movements, m, fecha);
 
         const pagada = candidates.length > 0;
         const primary = pagada ? candidates[0] : null;
@@ -79,9 +95,10 @@ export default class AdminConciliationService {
                 ? 'Se encontró un movimiento que coincide con monto y fecha.'
                 : 'No se encontró abono coincidente para esta cotización en la fecha indicada.',
             data: {
-                cotizacionId: cotizacion.id,
-                fecha: cotizacion.fecha,
-                monto: cotizacion.monto,
+                cotizacionId: id,
+                fecha,
+                monto: m,
+                hora: horaStr,
                 pagada,
                 candidatos: candidates.length,
                 movimiento: primary
