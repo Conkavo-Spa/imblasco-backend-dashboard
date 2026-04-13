@@ -12,4 +12,6 @@ router.get(
     controller.getQuotePaymentStatus
 );
 
+router.get('/conciliations/movements', controller.listMovements);
+
 export default router;

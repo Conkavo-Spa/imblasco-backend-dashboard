@@ -3,6 +3,7 @@
  * Mantener sincronizado con el contrato que consume el frontend.
  */
 export const CONCILIATION_CODES = {
+    OK: 'OK',
     PAID: 'PAID',
     UNPAID: 'UNPAID',
     INVALID_PARAMS: 'INVALID_PARAMS',

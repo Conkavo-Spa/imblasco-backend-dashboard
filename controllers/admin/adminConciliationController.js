@@ -50,4 +50,40 @@ export default class AdminConciliationController {
             });
         }
     };
+
+    /**
+     * GET /api/conciliations/movements
+     * Query: since=YYYY-MM-DD, until=YYYY-MM-DD (inclusive)
+     */
+    listMovements = async (req, res) => {
+        try {
+            const since = req.query.since != null ? String(req.query.since) : '';
+            const until = req.query.until != null ? String(req.query.until) : '';
+
+            const result = await adminConciliationService.listInboundMovements(since, until);
+
+            if (!result.success) {
+                const status =
+                    HTTP_STATUS_BY_CONCILIATION_CODE[result.code] || 400;
+                return res.status(status).json({
+                    success: false,
+                    code: result.code,
+                    message: result.message,
+                });
+            }
+
+            return res.status(200).json({
+                success: true,
+                code: result.code,
+                data: result.data,
+            });
+        } catch (error) {
+            console.error('❌ AdminConciliationController — listMovements:', error);
+            return res.status(500).json({
+                success: false,
+                code: CONCILIATION_CODES.INTERNAL_ERROR,
+                message: error.message || 'Error inesperado en el servidor',
+            });
+        }
+    };
 }
