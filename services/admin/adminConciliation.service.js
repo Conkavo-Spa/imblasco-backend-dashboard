@@ -18,6 +18,28 @@ function isValidYmd(s) {
  * DTO estable para UI: mismo shape que `data.movimiento` en payment-status.
  * @param {object} m - movimiento crudo Fintoc
  */
+function institutionLabel(inst) {
+    if (inst == null) return null;
+    if (typeof inst === 'string' && inst.trim() !== '') return inst.trim();
+    if (typeof inst === 'object') {
+        const name = inst.name;
+        const id = inst.id;
+        if (name != null && String(name).trim() !== '') return String(name).trim();
+        if (id != null && String(id).trim() !== '') return String(id).trim();
+    }
+    return null;
+}
+
+function mapTransferAccount(raw) {
+    if (!raw) return null;
+    return {
+        holder_id: raw.holder_id ?? null,
+        holder_name: raw.holder_name ?? null,
+        number: raw.number ?? null,
+        institution_name: institutionLabel(raw.institution),
+    };
+}
+
 function mapFintocMovementToDto(m) {
     return {
         id: m.id,
@@ -30,22 +52,8 @@ function mapFintocMovementToDto(m) {
         comment: m.comment ?? null,
         reference_id: m.reference_id ?? null,
         document_number: m.document_number ?? null,
-        sender_account: m.sender_account
-            ? {
-                  holder_id: m.sender_account.holder_id ?? null,
-                  holder_name: m.sender_account.holder_name ?? null,
-                  number: m.sender_account.number ?? null,
-                  institution_name: m.sender_account.institution?.name ?? null,
-              }
-            : null,
-        recipient_account: m.recipient_account
-            ? {
-                  holder_id: m.recipient_account.holder_id ?? null,
-                  holder_name: m.recipient_account.holder_name ?? null,
-                  number: m.recipient_account.number ?? null,
-                  institution_name: m.recipient_account.institution?.name ?? null,
-              }
-            : null,
+        sender_account: mapTransferAccount(m.sender_account),
+        recipient_account: mapTransferAccount(m.recipient_account),
     };
 }
 
@@ -186,9 +194,18 @@ export default class AdminConciliationService {
             };
         }
 
-        const inbound = movements.filter(
-            (m) => typeof m.amount === 'number' && m.amount > 0
-        );
+        // Prioridad: transferencias (type transfer). Excluye cheques. Los abonos "other"
+        // suelen no traer contraparte; si type viene vacío pero hay cuentas, se incluye.
+        const inbound = movements.filter((m) => {
+            if (!(typeof m.amount === 'number' && m.amount > 0)) return false;
+            const typeNorm = String(m.type || '').toLowerCase();
+            if (typeNorm === 'check') return false;
+            if (typeNorm === 'transfer') return true;
+            const hasParty =
+                m.sender_account != null || m.recipient_account != null;
+            if (!m.type && hasParty) return true;
+            return false;
+        });
         const dtos = inbound.map((m) => mapFintocMovementToDto(m));
         dtos.sort((a, b) => {
             const da = String(a.post_date || '');
