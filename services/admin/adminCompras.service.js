@@ -12,7 +12,7 @@ import Pedido from '../../models/Pedido.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const JSON_PATH     = path.resolve(__dirname, '../../data/compras_productos.json');
-const CATALOG_PATH  = path.resolve(__dirname, '../../data/catalogo_completo.json');
+const CATALOG_PATH  = path.resolve(__dirname, '../../data/catalogo_activo.json');
 
 function calcularSugerencia({ y2023, y2024, y2025, y2026, stock, porEmbarcar }) {
     const proyeccion = (y2025 * 0.5) + (y2024 * 0.3) + (y2023 * 0.2);
