@@ -82,9 +82,32 @@ export default class AdminComprasService {
         if (!existsSync(fuente)) return { success: true, data: { productos: [] } };
 
         const todos = JSON.parse(readFileSync(fuente, 'utf8'));
-        const resultados = todos.filter(p =>
+        const coincidencias = todos.filter(p =>
             p.nombre.toLowerCase().includes(q) || p.cod.toLowerCase().includes(q)
         ).slice(0, 100);
+
+        if (coincidencias.length === 0) return { success: true, data: { productos: [], total: 0 } };
+
+        // Aplicar las mismas deducciones de pedidos activos que usa getProductos
+        const pedidos = await Pedido.find().lean();
+        const confirmadosMap = {};
+        const embarcadosMap  = {};
+        pedidos.forEach(pedido => {
+            pedido.productos.forEach(p => {
+                if (p.estado === 'confirmado') confirmadosMap[p.cod] = (confirmadosMap[p.cod] || 0) + p.cantidad;
+                if (p.estado === 'embarcado')  embarcadosMap[p.cod]  = (embarcadosMap[p.cod]  || 0) + p.cantidad;
+            });
+        });
+
+        const resultados = coincidencias.map(p => {
+            const proyeccion     = (p.y2025 * 0.5) + (p.y2024 * 0.3) + (p.y2023 * 0.2);
+            const dashConfirmado = confirmadosMap[p.cod] ?? 0;
+            const dashEmbarcado  = embarcadosMap[p.cod]  ?? 0;
+            const sugerencia     = Math.max(0, Math.round(
+                proyeccion - (p.y2026 ?? 0) - (p.stock ?? 0) - (p.porEmbarcar ?? 0) - dashConfirmado - dashEmbarcado
+            ));
+            return { ...p, sugerencia };
+        });
 
         return { success: true, data: { productos: resultados, total: resultados.length } };
     };
@@ -160,7 +183,19 @@ export default class AdminComprasService {
         return { success: true, data: { productos: aPedir, actualizadoEl } };
     };
 
-    actualizarDatos = () => {
+    actualizarDatos = async () => {
+        await this._correrScript();
+        // Cerrar automáticamente los productos embarcados: ya llegaron al almacén
+        // y el cliente los ingresó al ERP antes de correr esta actualización.
+        await Pedido.updateMany(
+            { 'productos.estado': 'embarcado' },
+            { $set: { 'productos.$[item].estado': 'recibido' } },
+            { arrayFilters: [{ 'item.estado': 'embarcado' }] }
+        );
+        return { success: true };
+    };
+
+    _correrScript = () => {
         const scriptPath = path.resolve(__dirname, '../../scripts/extract_compras.js');
         return new Promise((resolve, reject) => {
             const child = spawn('node', [scriptPath], {
@@ -172,7 +207,7 @@ export default class AdminComprasService {
             child.stdout.on('data', d => { stdout += d.toString(); });
             child.stderr.on('data', d => { stderr += d.toString(); });
             child.on('close', code => {
-                if (code === 0) resolve({ success: true, output: stdout });
+                if (code === 0) resolve(stdout);
                 else reject(new Error(stderr || `El script terminó con código ${code}`));
             });
             child.on('error', reject);

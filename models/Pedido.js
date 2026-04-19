@@ -6,7 +6,7 @@ const lineaSchema = new Schema({
     cod:        { type: String, required: true },
     nombre:     { type: String, required: true },
     cantidad:   { type: Number, required: true, min: 0 },
-    estado:     { type: String, enum: ['pendiente', 'enDisputa', 'confirmado', 'embarcado'], default: 'pendiente' },
+    estado:     { type: String, enum: ['pendiente', 'enDisputa', 'confirmado', 'embarcado', 'recibido'], default: 'pendiente' },
 }, { _id: false });
 
 const pedidoSchema = new Schema({

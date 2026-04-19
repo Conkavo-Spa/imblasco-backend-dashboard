@@ -34,7 +34,8 @@ export default class AdminComprasController {
 
     /**
      * GET /api/compras/productos
-     * Retorna los 50 productos más comprados con sugerencia calculada.
+     * Retorna todos los productos activos con sugerencia calculada en tiempo real,
+     * descontando unidades ya gestionadas en el dashboard (confirmado + embarcado).
      */
     getProductos = async (req, res) => {
         try {
