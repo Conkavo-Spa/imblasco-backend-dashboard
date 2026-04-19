@@ -20,7 +20,6 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SQL_PATH = process.env.SQL_PATH ||
     'C:/Users/Javier/Desktop/blas-local/blas_local 20260227 0400.sql';
 const OUT_PATH            = path.resolve(__dirname, '../data/compras_productos.json');
-const CATALOG_PATH        = path.resolve(__dirname, '../data/catalogo_completo.json');
 const ACTIVE_CATALOG_PATH = path.resolve(__dirname, '../data/catalogo_activo.json');
 
 // ── Fórmula de sugerencia ─────────────────────────────────────────────────────
