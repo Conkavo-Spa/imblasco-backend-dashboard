@@ -14,9 +14,11 @@ const __dirname = path.dirname(__filename);
 const JSON_PATH     = path.resolve(__dirname, '../../data/compras_productos.json');
 const CATALOG_PATH  = path.resolve(__dirname, '../../data/catalogo_activo.json');
 
-function calcularSugerencia({ y2023, y2024, y2025, y2026, stock, porEmbarcar }) {
-    const proyeccion = (y2025 * 0.5) + (y2024 * 0.3) + (y2023 * 0.2);
-    const raw = proyeccion - y2026 - stock - porEmbarcar;
+const CY = new Date().getFullYear();
+
+function calcularSugerencia({ py1, py2, py3, cy, stock, porEmbarcar }) {
+    const proyeccion = (py1 * 0.5) + (py2 * 0.3) + (py3 * 0.2);
+    const raw = proyeccion - cy - stock - porEmbarcar;
     return Math.max(0, Math.round(raw));
 }
 
@@ -100,12 +102,16 @@ export default class AdminComprasService {
         });
 
         const resultados = coincidencias.map(p => {
-            const proyeccion     = (p.y2025 * 0.5) + (p.y2024 * 0.3) + (p.y2023 * 0.2);
             const dashConfirmado = confirmadosMap[p.cod] ?? 0;
             const dashEmbarcado  = embarcadosMap[p.cod]  ?? 0;
-            const sugerencia     = Math.max(0, Math.round(
-                proyeccion - (p.y2026 ?? 0) - (p.stock ?? 0) - (p.porEmbarcar ?? 0) - dashConfirmado - dashEmbarcado
-            ));
+            const sugerencia     = calcularSugerencia({
+                py1: p[`y${CY - 1}`] ?? 0,
+                py2: p[`y${CY - 2}`] ?? 0,
+                py3: p[`y${CY - 3}`] ?? 0,
+                cy:  p[`y${CY}`]     ?? 0,
+                stock: (p.stock ?? 0) + (p.porEmbarcar ?? 0) + dashConfirmado + dashEmbarcado,
+                porEmbarcar: 0,
+            });
             return { ...p, sugerencia };
         });
 
@@ -141,39 +147,37 @@ export default class AdminComprasService {
         // Calcular mesesCobertura y recalcular sugerencia en tiempo real
         // Incluye unidades del dashboard (confirmado + embarcado) además del ERP (porEmbarcar)
         const conCobertura = todos.map(p => {
-            const proyeccion       = (p.y2025 * 0.5) + (p.y2024 * 0.3) + (p.y2023 * 0.2);
+            const proyeccion       = (p[`y${CY - 1}`] * 0.5) + (p[`y${CY - 2}`] * 0.3) + (p[`y${CY - 3}`] * 0.2);
             const tasaMensual      = proyeccion / 12;
             const dashConfirmado   = confirmadosMap[p.cod] ?? 0;
             const dashEmbarcado    = embarcadosMap[p.cod]  ?? 0;
             const totalDisponible  = (p.stock ?? 0) + (p.porEmbarcar ?? 0) + dashConfirmado + dashEmbarcado;
             const mesesCobertura   = tasaMensual > 0 ? totalDisponible / tasaMensual : null;
             const sugerencia       = Math.max(0, Math.round(
-                proyeccion - (p.y2026 ?? 0) - (p.stock ?? 0) - (p.porEmbarcar ?? 0) - dashConfirmado - dashEmbarcado
+                proyeccion - (p[`y${CY}`] ?? 0) - (p.stock ?? 0) - (p.porEmbarcar ?? 0) - dashConfirmado - dashEmbarcado
             ));
             return { ...p, mesesCobertura, sugerencia };
         });
 
-        // Solo productos con actividad reciente demostrada (2025 o 2026) y demanda proyectada significativa.
-        // Productos sin ventas en 2025 ni 2026 se consideran inactivos y se excluyen.
+        // Solo productos con actividad reciente demostrada (año actual o anterior) y demanda proyectada significativa.
         const aPedir = conCobertura.filter(p => {
             if (p.sugerencia <= 0) return false;
 
-            const proy = (p.y2025 * 0.5) + (p.y2024 * 0.3) + (p.y2023 * 0.2);
+            const proy = (p[`y${CY - 1}`] * 0.5) + (p[`y${CY - 2}`] * 0.3) + (p[`y${CY - 3}`] * 0.2);
             if (proy < 100) return false;
 
-            // Requiere actividad en 2025 o 2026 — confirma que el producto sigue en el catálogo activo
-            const tieneActividadReciente = (p.y2025 ?? 0) > 0 || (p.y2026 ?? 0) > 0;
+            // Requiere actividad en el año actual o el anterior — confirma que el producto sigue activo
+            const tieneActividadReciente = (p[`y${CY - 1}`] ?? 0) > 0 || (p[`y${CY}`] ?? 0) > 0;
             if (!tieneActividadReciente) return false;
 
             return true;
         });
 
-        // Sort: productos con actividad en 2026 primero, luego todos por urgencia (mesesCobertura asc).
-        // Sin tiers: todos los productos restantes tienen actividad en 2025 o 2026.
+        // Sort: productos con actividad en el año actual primero, luego por urgencia (mesesCobertura asc).
         aPedir.sort((a, b) => {
-            const activo2026A = (a.y2026 ?? 0) > 0 ? 0 : 1;
-            const activo2026B = (b.y2026 ?? 0) > 0 ? 0 : 1;
-            if (activo2026A !== activo2026B) return activo2026A - activo2026B;
+            const activoCyA = (a[`y${CY}`] ?? 0) > 0 ? 0 : 1;
+            const activoCyB = (b[`y${CY}`] ?? 0) > 0 ? 0 : 1;
+            if (activoCyA !== activoCyB) return activoCyA - activoCyB;
             if (a.mesesCobertura === null && b.mesesCobertura === null) return 0;
             if (a.mesesCobertura === null) return 1;
             if (b.mesesCobertura === null) return -1;
