@@ -22,10 +22,13 @@ const SQL_PATH = process.env.SQL_PATH ||
 const OUT_PATH            = path.resolve(__dirname, '../data/compras_productos.json');
 const ACTIVE_CATALOG_PATH = path.resolve(__dirname, '../data/catalogo_activo.json');
 
+const CURRENT_YEAR = new Date().getFullYear();
+
 // ── Fórmula de sugerencia ─────────────────────────────────────────────────────
-function calcularSugerencia({ y2023, y2024, y2025, y2026, stock, porEmbarcar }) {
-    const proyeccion = (y2025 * 0.5) + (y2024 * 0.3) + (y2023 * 0.2);
-    const raw = proyeccion - y2026 - stock - porEmbarcar;
+// py1 = año anterior (50%), py2 = hace 2 años (30%), py3 = hace 3 años (20%), cy = año actual vendido
+function calcularSugerencia({ py1, py2, py3, cy, stock, porEmbarcar }) {
+    const proyeccion = (py1 * 0.5) + (py2 * 0.3) + (py3 * 0.2);
+    const raw = proyeccion - cy - stock - porEmbarcar;
     return Math.max(0, Math.round(raw));
 }
 
@@ -78,7 +81,7 @@ const P = { codpro: 0, descri: 1 };
 const B = { codpro: 1, stock: 2, stktran: 6 };
 
 // ── Acumuladores ──────────────────────────────────────────────────────────────
-const ventas = {};       // { codpro: { 2023: n, 2024: n, 2025: n, 2026: n } }
+const ventas = {};       // { codpro: { [cy-4]: n, ..., [cy]: n } }
 const nombres = {};      // { codpro: descri }
 const stockMap = {};     // { codpro: { stock: n, porEmbarcar: n } }
 const ultimaVenta = {};  // { codpro: año } — último año con venta (toda la historia)
@@ -140,16 +143,20 @@ async function main() {
 
             const fecemi = stripQuotes(cols[K.fecemi]);
             const year = fecemi ? parseInt(fecemi.substring(0, 4), 10) : 0;
-            if (year < 2016 || year > 2026) continue;
+            if (year < 2016 || year > CURRENT_YEAR) continue;
 
             const codpro = stripQuotes(cols[K.codpro]);
 
             // Rastrear último año con venta (toda la historia)
             if (!ultimaVenta[codpro] || year > ultimaVenta[codpro]) ultimaVenta[codpro] = year;
 
-            // Acumular solo 2023-2026 para cálculo de sugerencia
-            if (year >= 2023) {
-                if (!ventas[codpro]) ventas[codpro] = { 2023: 0, 2024: 0, 2025: 0, 2026: 0 };
+            // Acumular últimos 5 años (cy-4 a cy); el año más antiguo se usa solo en back-test
+            if (year >= CURRENT_YEAR - 4) {
+                if (!ventas[codpro]) {
+                    const init = {};
+                    for (let y = CURRENT_YEAR - 4; y <= CURRENT_YEAR; y++) init[y] = 0;
+                    ventas[codpro] = init;
+                }
                 ventas[codpro][year] += sale;
             }
 
@@ -165,57 +172,80 @@ async function main() {
     }
 
     console.log(`\n✅ Lectura completada (${lineCount.toLocaleString()} líneas)`);
-    console.log(`   Productos con ventas 2023-2026: ${Object.keys(ventas).length}`);
+    console.log(`   Productos con ventas ${CURRENT_YEAR - 4}-${CURRENT_YEAR}: ${Object.keys(ventas).length}`);
     console.log(`   Productos en catálogo:          ${Object.keys(nombres).length}`);
     console.log(`   Productos con stock:            ${Object.keys(stockMap).length}`);
 
     // ── Función para armar un producto ───────────────────────────────────────
     const buildProducto = (codpro, años) => {
-        const y2023 = años[2023] || 0;
-        const y2024 = años[2024] || 0;
-        const y2025 = años[2025] || 0;
-        const y2026 = años[2026] || 0;
-        const s = stockMap[codpro] || { stock: 0, porEmbarcar: 0 };
-        return {
+        const cy = CURRENT_YEAR;
+        const s  = stockMap[codpro] || { stock: 0, porEmbarcar: 0 };
+        const producto = {
             cod: codpro,
             nombre: nombres[codpro] || `Producto ${codpro}`,
-            y2023, y2024, y2025, y2026,
             stock: s.stock,
             porEmbarcar: s.porEmbarcar,
-            sugerencia: calcularSugerencia({ y2023, y2024, y2025, y2026, stock: s.stock, porEmbarcar: s.porEmbarcar }),
         };
+        for (let y = cy - 4; y <= cy; y++) producto[`y${y}`] = años[y] || 0;
+        producto.sugerencia = calcularSugerencia({
+            py1: años[cy - 1] || 0,
+            py2: años[cy - 2] || 0,
+            py3: años[cy - 3] || 0,
+            cy:  años[cy]     || 0,
+            stock: s.stock,
+            porEmbarcar: s.porEmbarcar,
+        });
+        return producto;
     };
 
     const ordenados = Object.entries(ventas)
         .map(([codpro, años]) => buildProducto(codpro, años))
-        .sort((a, b) => (b.y2023 + b.y2024 + b.y2025 + b.y2026) - (a.y2023 + a.y2024 + a.y2025 + a.y2026));
+        .sort((a, b) => {
+            let sumA = 0, sumB = 0;
+            for (let y = CURRENT_YEAR - 3; y <= CURRENT_YEAR; y++) {
+                sumA += a[`y${y}`] || 0;
+                sumB += b[`y${y}`] || 0;
+            }
+            return sumB - sumA;
+        });
 
     // ── Top 50 (para la tabla principal) ─────────────────────────────────────
     const top50 = ordenados.slice(0, 50);
 
     // ── Catálogo activo (para búsqueda) ──────────────────────────────────────
-    // Solo productos con última venta >= 2022 (FACT o GUIA), ordenados por total histórico
+    // Solo productos con última venta en los últimos 5 años, ordenados por total histórico
     const catalogoActivo = [];
     Object.keys(nombres).forEach(codpro => {
         const ultimoAno = ultimaVenta[codpro] || 0;
-        if (ultimoAno < 2022) return;  // excluir dormidos/obsoletos
-        const v = ventas[codpro] || { 2023: 0, 2024: 0, 2025: 0, 2026: 0 };
+        if (ultimoAno < CURRENT_YEAR - 4) return;  // excluir dormidos/obsoletos
+        const v = ventas[codpro] || {};
         const s = stockMap[codpro] || { stock: 0, porEmbarcar: 0 };
-        const y2023 = v[2023] || 0;
-        const y2024 = v[2024] || 0;
-        const y2025 = v[2025] || 0;
-        const y2026 = v[2026] || 0;
-        catalogoActivo.push({
+        const item = {
             cod: codpro,
             nombre: nombres[codpro],
-            y2023, y2024, y2025, y2026,
             stock: s.stock,
             porEmbarcar: s.porEmbarcar,
-            sugerencia: calcularSugerencia({ y2023, y2024, y2025, y2026, stock: s.stock, porEmbarcar: s.porEmbarcar }),
             ultimoAno,
+        };
+        for (let y = CURRENT_YEAR - 4; y <= CURRENT_YEAR; y++) item[`y${y}`] = v[y] || 0;
+        item.sugerencia = calcularSugerencia({
+            py1: v[CURRENT_YEAR - 1] || 0,
+            py2: v[CURRENT_YEAR - 2] || 0,
+            py3: v[CURRENT_YEAR - 3] || 0,
+            cy:  v[CURRENT_YEAR]     || 0,
+            stock: s.stock,
+            porEmbarcar: s.porEmbarcar,
         });
+        catalogoActivo.push(item);
     });
-    catalogoActivo.sort((a, b) => (b.y2023 + b.y2024 + b.y2025 + b.y2026) - (a.y2023 + a.y2024 + a.y2025 + a.y2026));
+    catalogoActivo.sort((a, b) => {
+        let sumA = 0, sumB = 0;
+        for (let y = CURRENT_YEAR - 3; y <= CURRENT_YEAR; y++) {
+            sumA += a[`y${y}`] || 0;
+            sumB += b[`y${y}`] || 0;
+        }
+        return sumB - sumA;
+    });
 
     // ── Guardar JSON ──────────────────────────────────────────────────────────
     const outDir = path.dirname(OUT_PATH);
@@ -231,7 +261,8 @@ async function main() {
     if (top50.length > 0) {
         console.log('\nTop 5 productos:');
         top50.slice(0, 5).forEach((p, i) => {
-            const total = p.y2023 + p.y2024 + p.y2025 + p.y2026;
+            let total = 0;
+            for (let y = CURRENT_YEAR - 3; y <= CURRENT_YEAR; y++) total += p[`y${y}`] || 0;
             console.log(`  ${i + 1}. [${p.cod}] ${p.nombre.slice(0, 50)} — ${total.toLocaleString()} un`);
         });
     }
