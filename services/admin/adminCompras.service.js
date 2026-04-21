@@ -159,8 +159,7 @@ export default class AdminComprasService {
             return { ...p, mesesCobertura, sugerencia };
         });
 
-        // Solo productos con actividad reciente demostrada (2025 o 2026) y demanda proyectada significativa.
-        // Productos sin ventas en 2025 ni 2026 se consideran inactivos y se excluyen.
+        // Solo productos con actividad reciente demostrada (año actual o anterior) y demanda proyectada significativa.
         const aPedir = conCobertura.filter(p => {
             if (p.sugerencia <= 0) return false;
 
