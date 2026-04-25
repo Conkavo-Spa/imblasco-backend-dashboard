@@ -7,27 +7,46 @@ import {
 const adminConciliationService = new AdminConciliationService();
 
 export default class AdminConciliationController {
+
+    /**
+     * GET /api/conciliations/cotizaciones
+     * Query: since=YYYY-MM-DD, until=YYYY-MM-DD, page=1, limit=50
+     */
+    listCotizaciones = async (req, res) => {
+        try {
+            const { since, until, page = 1, limit = 50 } = req.query;
+
+            const result = await adminConciliationService.listCotizaciones({
+                since,
+                until,
+                page: Number(page),
+                limit: Math.min(Number(limit), 200),
+            });
+
+            return res.status(200).json(result);
+        } catch (error) {
+            console.error('❌ AdminConciliationController — listCotizaciones:', error);
+            return res.status(500).json({
+                success: false,
+                code: CONCILIATION_CODES.INTERNAL_ERROR,
+                message: error.message || 'Error inesperado en el servidor',
+            });
+        }
+    };
+
     /**
      * GET /api/conciliations/cotizaciones/:cotizacionId/payment-status
-     * Query: fecha=YYYY-MM-DD, monto=entero, hora=opcional (desde el front; el match usa fecha+monto vs Fintoc).
+     * Busca la cotización en MongoDB y cruza contra Fintoc.
+     * No requiere fecha ni monto en query — los obtiene de la BD.
      */
     getQuotePaymentStatus = async (req, res) => {
         try {
             const { cotizacionId } = req.params;
-            const fecha = req.query.fecha != null ? String(req.query.fecha) : '';
-            const monto = req.query.monto;
-            const hora = req.query.hora != null ? String(req.query.hora) : '';
 
-            const result = await adminConciliationService.checkQuotePaymentStatus(
-                cotizacionId,
-                fecha,
-                monto,
-                hora
-            );
+            const result = await adminConciliationService.checkQuotePaymentStatus(cotizacionId);
 
             if (!result.success) {
-                const status =
-                    HTTP_STATUS_BY_CONCILIATION_CODE[result.code] || 400;
+                const status = HTTP_STATUS_BY_CONCILIATION_CODE[result.code] || 400;
                 return res.status(status).json({
                     success: false,
                     code: result.code,
@@ -42,7 +61,7 @@ export default class AdminConciliationController {
                 data: result.data,
             });
         } catch (error) {
-            console.error('❌ AdminConciliationController — error inesperado:', error);
+            console.error('❌ AdminConciliationController — getQuotePaymentStatus:', error);
             return res.status(500).json({
                 success: false,
                 code: CONCILIATION_CODES.INTERNAL_ERROR,
@@ -63,8 +82,7 @@ export default class AdminConciliationController {
             const result = await adminConciliationService.listInboundMovements(since, until);
 
             if (!result.success) {
-                const status =
-                    HTTP_STATUS_BY_CONCILIATION_CODE[result.code] || 400;
+                const status = HTTP_STATUS_BY_CONCILIATION_CODE[result.code] || 400;
                 return res.status(status).json({
                     success: false,
                     code: result.code,

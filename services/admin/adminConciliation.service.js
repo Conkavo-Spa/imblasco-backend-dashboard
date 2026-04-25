@@ -5,8 +5,10 @@ import {
 import {
     getFintocConfigFromEnv,
     listMovementsInRange,
+    listMovementsAllAccounts,
     filterMatchingDeposits,
 } from '../../libs/fintocClient.js';
+import Cotizacion from '../../models/Cotizacion.js';
 
 function isValidYmd(s) {
     if (typeof s !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
@@ -14,10 +16,6 @@ function isValidYmd(s) {
     return d.isValid() && d.format('YYYY-MM-DD') === s;
 }
 
-/**
- * DTO estable para UI: mismo shape que `data.movimiento` en payment-status.
- * @param {object} m - movimiento crudo Fintoc
- */
 function institutionLabel(inst) {
     if (inst == null) return null;
     if (typeof inst === 'string' && inst.trim() !== '') return inst.trim();
@@ -54,69 +52,125 @@ function mapFintocMovementToDto(m) {
         document_number: m.document_number ?? null,
         sender_account: mapTransferAccount(m.sender_account),
         recipient_account: mapTransferAccount(m.recipient_account),
+        // Datos de la cuenta bancaria receptora (para filtro por banco en UI)
+        account_id: m.account_id ?? null,
+        account_number: m.account_number ?? null,
+        account_holder: m.account_holder ?? null,
+        account_name: m.account_name ?? null,
     };
 }
 
-/**
- * Conciliación: datos de cotización vienen del cliente; Fintoc aporta movimientos reales.
- */
+function mapCotizacionToDto(doc) {
+    return {
+        cotizacion: doc.cotizacion,
+        rutcli: doc.rutcli ?? null,
+        razon_social: doc.cliente?.razon_social ?? null,
+        fecha: doc.fecha ? dayjs(doc.fecha).format('YYYY-MM-DD') : null,
+        monto: doc.totales?.totgen ?? null,
+        totales: doc.totales ?? null,
+    };
+}
+
 export default class AdminConciliationService {
+
     /**
-     * @param {string} cotizacionId - ej. COT-001
-     * @param {string} fechaYmd - YYYY-MM-DD (fecha contable esperada)
-     * @param {number} monto - entero positivo (ej. CLP)
-     * @param {string} [hora] - informativo (UI); no usado en match Fintoc por ahora
+     * Lista cotizaciones desde MongoDB con filtro opcional por rango de fecha.
+     * GET /api/conciliations/cotizaciones?since=&until=&page=&limit=
      */
-    checkQuotePaymentStatus = async (cotizacionId, fechaYmd, monto, hora) => {
-        const id = String(cotizacionId ?? '').trim();
-        if (!id) {
+    listCotizaciones = async ({ since, until, page = 1, limit = 50 } = {}) => {
+        const filter = {};
+
+        if (since || until) {
+            filter.fecha = {};
+            if (since && isValidYmd(since)) {
+                filter.fecha.$gte = dayjs(since).toDate();
+            }
+            if (until && isValidYmd(until)) {
+                filter.fecha.$lte = dayjs(until).endOf('day').toDate();
+            }
+        }
+
+        const skip = (Math.max(1, page) - 1) * limit;
+
+        const [docs, total] = await Promise.all([
+            Cotizacion.find(filter)
+                .sort({ fecha: -1 })
+                .skip(skip)
+                .limit(limit)
+                .lean(),
+            Cotizacion.countDocuments(filter),
+        ]);
+
+        return {
+            success: true,
+            code: CONCILIATION_CODES.OK,
+            data: {
+                total,
+                page: Number(page),
+                limit: Number(limit),
+                cotizaciones: docs.map(mapCotizacionToDto),
+            },
+        };
+    };
+
+    /**
+     * Busca la cotización en MongoDB y con su fecha + monto total consulta Fintoc.
+     * GET /api/conciliations/cotizaciones/:cotizacionId/payment-status
+     */
+    checkQuotePaymentStatus = async (cotizacionId) => {
+        const idNum = Number(String(cotizacionId ?? '').trim());
+        if (!idNum || isNaN(idNum)) {
             return {
                 success: false,
                 code: CONCILIATION_CODES.INVALID_ID,
-                message: 'El id de cotización es requerido',
+                message: 'El id de cotización debe ser un número válido',
             };
         }
 
-        const fecha = typeof fechaYmd === 'string' ? fechaYmd.trim() : '';
-        if (!isValidYmd(fecha)) {
+        const cotizacion = await Cotizacion.findOne({ cotizacion: idNum }).lean();
+        if (!cotizacion) {
+            return {
+                success: false,
+                code: CONCILIATION_CODES.NOT_FOUND,
+                message: `Cotización ${idNum} no encontrada en la base de datos`,
+            };
+        }
+
+        const fecha = cotizacion.fecha
+            ? dayjs(cotizacion.fecha).format('YYYY-MM-DD')
+            : null;
+
+        if (!fecha || !isValidYmd(fecha)) {
             return {
                 success: false,
                 code: CONCILIATION_CODES.INVALID_PARAMS,
-                message: 'fecha inválida: use YYYY-MM-DD',
+                message: `La cotización ${idNum} no tiene fecha válida`,
             };
         }
 
-        const m =
-            typeof monto === 'number'
-                ? monto
-                : Number.parseInt(String(monto ?? '').trim(), 10);
-        if (!Number.isInteger(m) || m <= 0) {
+        const monto = cotizacion.totales?.totgen;
+        if (!Number.isInteger(monto) || monto <= 0) {
             return {
                 success: false,
                 code: CONCILIATION_CODES.INVALID_PARAMS,
-                message: 'monto inválido: entero positivo requerido',
+                message: `La cotización ${idNum} no tiene monto total (totgen) válido`,
             };
         }
-
-        const horaStr =
-            hora != null && String(hora).trim() !== '' ? String(hora).trim() : null;
 
         const cfg = getFintocConfigFromEnv();
         if (!cfg) {
             return {
                 success: false,
                 code: CONCILIATION_CODES.FINTOC_NOT_CONFIGURED,
-                message:
-                    'Fintoc no está configurado. Defina FINTOC_SECRET_KEY, FINTOC_LINK_TOKEN y FINTOC_ACCOUNT_ID.',
+                message: 'Fintoc no está configurado. Defina FINTOC_SECRET_KEY, FINTOC_LINK_TOKEN y FINTOC_ACCOUNT_ID.',
             };
         }
 
-        const since = fecha;
         const untilExclusive = dayjs(fecha).add(1, 'day').format('YYYY-MM-DD');
 
         let movements;
         try {
-            movements = await listMovementsInRange(cfg, since, untilExclusive);
+            movements = await listMovementsAllAccounts(cfg, fecha, untilExclusive);
         } catch (e) {
             console.error('❌ AdminConciliationService — error Fintoc:', e);
             return {
@@ -126,8 +180,7 @@ export default class AdminConciliationService {
             };
         }
 
-        const candidates = filterMatchingDeposits(movements, m, fecha);
-
+        const candidates = filterMatchingDeposits(movements, monto, fecha);
         const pagada = candidates.length > 0;
         const primary = pagada ? candidates[0] : null;
 
@@ -138,10 +191,7 @@ export default class AdminConciliationService {
                 ? 'Se encontró un movimiento que coincide con monto y fecha.'
                 : 'No se encontró abono coincidente para esta cotización en la fecha indicada.',
             data: {
-                cotizacionId: id,
-                fecha,
-                monto: m,
-                hora: horaStr,
+                cotizacion: mapCotizacionToDto(cotizacion),
                 pagada,
                 candidatos: candidates.length,
                 movimiento: primary ? mapFintocMovementToDto(primary) : null,
@@ -150,7 +200,7 @@ export default class AdminConciliationService {
     };
 
     /**
-     * Abonos (amount &gt; 0) en [since, until] fechas contables YYYY-MM-DD.
+     * Abonos (amount > 0) en [since, until] fechas contables YYYY-MM-DD.
      */
     listInboundMovements = async (sinceYmd, untilInclusiveYmd) => {
         const since = typeof sinceYmd === 'string' ? sinceYmd.trim() : '';
@@ -175,8 +225,7 @@ export default class AdminConciliationService {
             return {
                 success: false,
                 code: CONCILIATION_CODES.FINTOC_NOT_CONFIGURED,
-                message:
-                    'Fintoc no está configurado. Defina FINTOC_SECRET_KEY, FINTOC_LINK_TOKEN y FINTOC_ACCOUNT_ID.',
+                message: 'Fintoc no está configurado. Defina FINTOC_SECRET_KEY, FINTOC_LINK_TOKEN y FINTOC_ACCOUNT_ID.',
             };
         }
 
@@ -184,7 +233,7 @@ export default class AdminConciliationService {
 
         let movements;
         try {
-            movements = await listMovementsInRange(cfg, since, untilExclusive);
+            movements = await listMovementsAllAccounts(cfg, since, untilExclusive);
         } catch (e) {
             console.error('❌ AdminConciliationService — error Fintoc (list):', e);
             return {
@@ -194,18 +243,16 @@ export default class AdminConciliationService {
             };
         }
 
-        // Prioridad: transferencias (type transfer). Excluye cheques. Los abonos "other"
-        // suelen no traer contraparte; si type viene vacío pero hay cuentas, se incluye.
         const inbound = movements.filter((m) => {
             if (!(typeof m.amount === 'number' && m.amount > 0)) return false;
             const typeNorm = String(m.type || '').toLowerCase();
             if (typeNorm === 'check') return false;
             if (typeNorm === 'transfer') return true;
-            const hasParty =
-                m.sender_account != null || m.recipient_account != null;
+            const hasParty = m.sender_account != null || m.recipient_account != null;
             if (!m.type && hasParty) return true;
             return false;
         });
+
         const dtos = inbound.map((m) => mapFintocMovementToDto(m));
         dtos.sort((a, b) => {
             const da = String(a.post_date || '');
