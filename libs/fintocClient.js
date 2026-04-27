@@ -1,36 +1,61 @@
 /**
- * Cliente HTTP para la API de agregación Fintoc (movimientos por cuenta).
- * Soporta múltiples cuentas bancarias via FINTOC_ACCOUNT_IDS (separadas por coma).
- * Documentación: https://docs.fintoc.com/reference/movements-list
+ * Cliente Fintoc — soporta múltiples bancos via variables de entorno.
+ *
+ * Convención: una variable por banco, formato FINTOC_NOMBRE=link_token
+ *   FINTOC_SANTANDER=link_xxx
+ *   FINTOC_BCI=link_yyy
+ *   FINTOC_BANCO_ESTADO=link_zzz
+ *
+ * El código detecta automáticamente todas las vars FINTOC_* que contengan
+ * un link_token (valor comienza con "link_"). Al agregar/quitar una variable
+ * en Render, el banco aparece/desaparece de la tabla sin tocar código.
+ *
+ * Documentación Fintoc: https://docs.fintoc.com/reference/movements-list
  */
 
 const FINTOC_API_BASE = 'https://api.fintoc.com/v1';
 const MAX_PER_PAGE = 300;
 const MAX_PAGES_SAFETY = 50;
 
+// Vars internas que no son bancos
+const RESERVED_KEYS = new Set([
+    'FINTOC_SECRET_KEY',
+    'FINTOC_LINK_TOKEN',
+    'FINTOC_ACCOUNT_ID',
+    'FINTOC_ACCOUNT_IDS',
+]);
+
 /**
- * Lee configuración Fintoc desde variables de entorno.
- * Soporta FINTOC_ACCOUNT_IDS (múltiple) con fallback a FINTOC_ACCOUNT_ID (legado).
+ * Lee FINTOC_SECRET_KEY y detecta automáticamente todos los bancos configurados.
+ * Un banco = cualquier variable FINTOC_* cuyo valor empiece con "link_".
  *
- * @returns {{ secretKey, linkToken, accountIds: string[] } | null}
+ * @returns {{ secretKey: string, banks: Array<{ name: string, linkToken: string }> } | null}
  */
 export function getFintocConfigFromEnv() {
     const secretKey = process.env.FINTOC_SECRET_KEY?.trim();
-    const linkToken = process.env.FINTOC_LINK_TOKEN?.trim();
-    if (!secretKey || !linkToken) return null;
+    if (!secretKey) return null;
 
-    const multipleIds = process.env.FINTOC_ACCOUNT_IDS?.trim();
-    const singleId = process.env.FINTOC_ACCOUNT_ID?.trim();
+    const banks = [];
+    for (const [key, value] of Object.entries(process.env)) {
+        if (
+            key.startsWith('FINTOC_') &&
+            !RESERVED_KEYS.has(key) &&
+            typeof value === 'string' &&
+            value.trim().startsWith('link_')
+        ) {
+            const bankName = key
+                .replace('FINTOC_', '')
+                .replace(/_/g, ' ')
+                .toLowerCase()
+                .replace(/\b\w/g, (c) => c.toUpperCase());
 
-    const accountIds = multipleIds
-        ? multipleIds.split(',').map((id) => id.trim()).filter(Boolean)
-        : singleId
-            ? [singleId]
-            : [];
+            banks.push({ name: bankName, linkToken: value.trim() });
+        }
+    }
 
-    if (accountIds.length === 0) return null;
+    if (banks.length === 0) return null;
 
-    return { secretKey, linkToken, accountIds };
+    return { secretKey, banks };
 }
 
 function postDateToYmd(postDate) {
@@ -66,19 +91,15 @@ async function fetchMovementsPage({ secretKey, linkToken, accountId, since, unti
 }
 
 /**
- * Trae metadata de todas las cuentas vinculadas al link_token.
- * Usado para obtener número de cuenta y titular para enriquecer movimientos.
- *
- * @param {{ secretKey, linkToken }} cfg
- * @returns {Promise<Array<{ id, number, holder_name, name }>>}
+ * Trae las cuentas vinculadas a un link_token.
  */
-export async function listAccounts(cfg) {
+async function fetchAccounts({ secretKey, linkToken }) {
     const url = new URL(`${FINTOC_API_BASE}/accounts`);
-    url.searchParams.set('link_token', cfg.linkToken);
+    url.searchParams.set('link_token', linkToken);
 
     const res = await fetch(url.toString(), {
         method: 'GET',
-        headers: { Authorization: cfg.secretKey, Accept: 'application/json' },
+        headers: { Authorization: secretKey, Accept: 'application/json' },
     });
 
     const text = await res.text();
@@ -94,24 +115,17 @@ export async function listAccounts(cfg) {
 }
 
 /**
- * Lista todos los movimientos de UNA cuenta en [since, until) paginando automáticamente.
- *
- * @param {{ secretKey, linkToken }} cfg
- * @param {string} accountId
- * @param {string} since - YYYY-MM-DD (inclusive)
- * @param {string} untilExclusive - YYYY-MM-DD (exclusivo)
- * @returns {Promise<object[]>}
+ * Lista movimientos de UNA cuenta paginando automáticamente.
  */
-export async function listMovementsInRange(cfg, since, untilExclusive, accountId = null) {
-    const accId = accountId ?? cfg.accountIds?.[0] ?? cfg.accountId;
+async function listMovementsForAccount({ secretKey, linkToken, accountId, since, untilExclusive }) {
     const all = [];
     let page = 1;
 
     for (;;) {
         const chunk = await fetchMovementsPage({
-            secretKey: cfg.secretKey,
-            linkToken: cfg.linkToken,
-            accountId: accId,
+            secretKey,
+            linkToken,
+            accountId,
             since,
             until: untilExclusive,
             page,
@@ -127,52 +141,73 @@ export async function listMovementsInRange(cfg, since, untilExclusive, accountId
 }
 
 /**
- * Lista movimientos de TODAS las cuentas en paralelo y los enriquece con info de cuenta.
- * Cada movimiento incluye: account_id, account_number, account_holder.
+ * Lista movimientos de TODOS los bancos configurados en paralelo.
+ * Cada movimiento incluye: bank_name, account_id, account_number, account_holder.
  *
- * @param {{ secretKey, linkToken, accountIds: string[] }} cfg
- * @param {string} since - YYYY-MM-DD
+ * Si un banco falla, los demás siguen funcionando (Promise.allSettled).
+ *
+ * @param {{ secretKey: string, banks: Array<{ name, linkToken }> }} cfg
+ * @param {string} since - YYYY-MM-DD (inclusive)
  * @param {string} untilExclusive - YYYY-MM-DD (exclusivo)
  * @returns {Promise<object[]>}
  */
 export async function listMovementsAllAccounts(cfg, since, untilExclusive) {
-    // Trae metadata de cuentas para enriquecer movimientos con número y titular
-    let accountsMeta = [];
-    try {
-        accountsMeta = await listAccounts(cfg);
-    } catch (e) {
-        console.warn('[Fintoc] No se pudo obtener metadata de cuentas:', e.message);
-    }
+    const bankResults = await Promise.allSettled(
+        cfg.banks.map(async ({ name: bankName, linkToken }) => {
+            // 1. Obtener cuentas del banco
+            const accounts = await fetchAccounts({ secretKey: cfg.secretKey, linkToken });
 
-    const metaById = Object.fromEntries(accountsMeta.map((a) => [a.id, a]));
+            // 2. Traer movimientos de todas las cuentas del banco en paralelo
+            const accountResults = await Promise.allSettled(
+                accounts.map((account) =>
+                    listMovementsForAccount({
+                        secretKey: cfg.secretKey,
+                        linkToken,
+                        accountId: account.id,
+                        since,
+                        untilExclusive,
+                    }).then((movements) =>
+                        movements.map((m) => ({
+                            ...m,
+                            bank_name: bankName,
+                            account_id: account.id,
+                            account_number: account.number ?? null,
+                            account_holder: account.holder_name ?? null,
+                        }))
+                    )
+                )
+            );
 
-    // Consulta todas las cuentas en paralelo
-    const results = await Promise.allSettled(
-        cfg.accountIds.map((accountId) =>
-            listMovementsInRange(cfg, since, untilExclusive, accountId).then((movements) => {
-                const meta = metaById[accountId] ?? {};
-                return movements.map((m) => ({
-                    ...m,
-                    account_id: accountId,
-                    account_number: meta.number ?? null,
-                    account_holder: meta.holder_name ?? null,
-                    account_name: meta.name ?? null,
-                }));
-            })
-        )
+            const bankMovements = [];
+            for (const result of accountResults) {
+                if (result.status === 'fulfilled') {
+                    bankMovements.push(...result.value);
+                } else {
+                    console.error(`[Fintoc][${bankName}] Error en cuenta:`, result.reason?.message);
+                }
+            }
+            return bankMovements;
+        })
     );
 
     const all = [];
-    for (const [i, result] of results.entries()) {
+    for (const [i, result] of bankResults.entries()) {
         if (result.status === 'fulfilled') {
             all.push(...result.value);
         } else {
-            console.error(`[Fintoc] Error cuenta ${cfg.accountIds[i]}:`, result.reason?.message);
+            console.error(`[Fintoc][${cfg.banks[i]?.name}] Error al consultar banco:`, result.reason?.message);
         }
     }
 
     return all;
 }
+
+// Mantiene compatibilidad con el service para payment-status (single bank lookup)
+export async function listMovementsInRange(cfg, since, untilExclusive) {
+    return listMovementsAllAccounts(cfg, since, untilExclusive);
+}
+
+export { fetchAccounts as listAccounts };
 
 /**
  * Filtra abonos que coinciden con monto y fecha contable (YYYY-MM-DD).
