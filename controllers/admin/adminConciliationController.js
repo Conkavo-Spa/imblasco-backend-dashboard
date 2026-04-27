@@ -20,7 +20,7 @@ export default class AdminConciliationController {
                 since,
                 until,
                 page: Number(page),
-                limit: Math.min(Number(limit), 200),
+                limit: Math.min(Number(limit), 1000),
             });
 
             return res.status(200).json(result);
