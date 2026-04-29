@@ -20,7 +20,7 @@ export default class AdminComprasController {
 
     /**
      * POST /api/compras/actualizar
-     * Corre el script extract_compras.js para regenerar los JSON desde el dump SQL.
+     * Marca todos los productos en estado 'embarcado' como 'recibido'.
      */
     actualizarDatos = async (req, res) => {
         try {
