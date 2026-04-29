@@ -1,18 +1,5 @@
-/**
- * Servicio de Compras — ImBlasco Dashboard
- * Lee datos reales desde data/compras_productos.json (generado por scripts/extract_compras.js).
- * Si el archivo no existe, usa mock data como fallback.
- */
-import { readFileSync, existsSync, statSync } from 'fs';
-import { fileURLToPath } from 'url';
-import { spawn } from 'child_process';
-import path from 'path';
 import Pedido from '../../models/Pedido.js';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const JSON_PATH     = path.resolve(__dirname, '../../data/compras_productos.json');
-const CATALOG_PATH  = path.resolve(__dirname, '../../data/catalogo_activo.json');
+import ImblascoProducto from '../../models/ImblascoProducto.js';
 
 const CY = new Date().getFullYear();
 
@@ -22,75 +9,23 @@ function calcularSugerencia({ py1, py2, py3, cy, stock, porEmbarcar }) {
     return Math.max(0, Math.round(raw));
 }
 
-const MOCK_PRODUCTOS = [
-    { cod: '2231', nombre: 'Bolsa tote ecológica 35×40',         y2023: 2100, y2024: 2400, y2025: 2650, y2026: 980,  stock: 820,  porEmbarcar: 400 },
-    { cod: '2244', nombre: 'Taza cerámica 350ml c/logo',          y2023: 1800, y2024: 2100, y2025: 2300, y2026: 710,  stock: 150,  porEmbarcar: 200 },
-    { cod: '2260', nombre: 'Lápiz metálico grabado',              y2023: 5200, y2024: 5800, y2025: 6100, y2026: 2100, stock: 2200, porEmbarcar: 1000 },
-    { cod: '2275', nombre: 'Libreta tapa dura A5',                y2023: 1400, y2024: 1700, y2025: 1900, y2026: 550,  stock: 300,  porEmbarcar: 100 },
-    { cod: '2290', nombre: 'Botella acero inox 500ml',            y2023: 900,  y2024: 1200, y2025: 1450, y2026: 390,  stock: 80,   porEmbarcar: 300 },
-    { cod: '2310', nombre: 'Pendrive 16GB carcasa bambú',         y2023: 700,  y2024: 900,  y2025: 1100, y2026: 280,  stock: 420,  porEmbarcar: 0 },
-    { cod: '2325', nombre: 'Paraguas plegable automático',        y2023: 600,  y2024: 750,  y2025: 880,  y2026: 210,  stock: 95,   porEmbarcar: 150 },
-    { cod: '2340', nombre: 'Gorro lana bordado',                  y2023: 1100, y2024: 1300, y2025: 1500, y2026: 420,  stock: 60,   porEmbarcar: 200 },
-    { cod: '2355', nombre: 'Polera algodón 180g',                 y2023: 3200, y2024: 3700, y2025: 4100, y2026: 1350, stock: 500,  porEmbarcar: 800 },
-    { cod: '2370', nombre: 'Delantal cocina sublimado',           y2023: 800,  y2024: 950,  y2025: 1050, y2026: 310,  stock: 200,  porEmbarcar: 0 },
-    { cod: '2388', nombre: 'Set destornilladores 6 pzas',         y2023: 450,  y2024: 600,  y2025: 720,  y2026: 190,  stock: 130,  porEmbarcar: 50 },
-    { cod: '2400', nombre: 'Cargador inalámbrico 15W',            y2023: 350,  y2024: 500,  y2025: 680,  y2026: 170,  stock: 40,   porEmbarcar: 100 },
-    { cod: '2415', nombre: 'Audífono bluetooth on-ear',           y2023: 280,  y2024: 380,  y2025: 490,  y2026: 120,  stock: 25,   porEmbarcar: 50 },
-    { cod: '2430', nombre: 'Mousepad XL 80×40cm',                 y2023: 900,  y2024: 1100, y2025: 1250, y2026: 380,  stock: 310,  porEmbarcar: 0 },
-    { cod: '2445', nombre: 'Termo café 400ml c/tapa',             y2023: 650,  y2024: 800,  y2025: 950,  y2026: 270,  stock: 120,  porEmbarcar: 100 },
-    { cod: '2460', nombre: 'Poncho polar fleece',                 y2023: 1200, y2024: 1400, y2025: 1600, y2026: 460,  stock: 180,  porEmbarcar: 250 },
-    { cod: '2475', nombre: 'Linterna LED recargable',             y2023: 400,  y2024: 520,  y2025: 640,  y2026: 175,  stock: 90,   porEmbarcar: 0 },
-    { cod: '2490', nombre: 'Cartera cuero sintético',             y2023: 550,  y2024: 700,  y2025: 820,  y2026: 220,  stock: 70,   porEmbarcar: 80 },
-    { cod: '2505', nombre: 'Agenda ejecutiva 2026',               y2023: 1800, y2024: 2000, y2025: 2200, y2026: 680,  stock: 400,  porEmbarcar: 300 },
-    { cod: '2520', nombre: 'Lapicero set ×3 colores',             y2023: 3000, y2024: 3400, y2025: 3800, y2026: 1150, stock: 1200, porEmbarcar: 500 },
-    { cod: '2535', nombre: 'Portanombre acrílico',                y2023: 2500, y2024: 2800, y2025: 3100, y2026: 930,  stock: 800,  porEmbarcar: 0 },
-    { cod: '2550', nombre: 'Mascarilla tela reutilizable',        y2023: 4000, y2024: 3500, y2025: 3000, y2026: 820,  stock: 600,  porEmbarcar: 0 },
-    { cod: '2565', nombre: 'Tote bag yute natural',               y2023: 1600, y2024: 1900, y2025: 2100, y2026: 630,  stock: 350,  porEmbarcar: 200 },
-    { cod: '2580', nombre: 'Mug plástico 400ml doble pared',      y2023: 1300, y2024: 1500, y2025: 1700, y2026: 490,  stock: 280,  porEmbarcar: 100 },
-    { cod: '2595', nombre: 'Bloc notas 100 hojas',                y2023: 2200, y2024: 2500, y2025: 2800, y2026: 840,  stock: 900,  porEmbarcar: 0 },
-    { cod: '2610', nombre: 'Regla metálica 30cm',                 y2023: 1900, y2024: 2100, y2025: 2300, y2026: 700,  stock: 700,  porEmbarcar: 0 },
-    { cod: '2625', nombre: 'Clip magnético set ×10',              y2023: 3500, y2024: 3900, y2025: 4200, y2026: 1280, stock: 1500, porEmbarcar: 300 },
-    { cod: '2640', nombre: 'Post-it 76×76 neón ×4',               y2023: 4200, y2024: 4600, y2025: 5000, y2026: 1540, stock: 1800, porEmbarcar: 400 },
-    { cod: '2655', nombre: 'Cinta adhesiva transparente',         y2023: 2800, y2024: 3100, y2025: 3400, y2026: 1020, stock: 1100, porEmbarcar: 0 },
-    { cod: '2670', nombre: 'Tijeras acero inox 21cm',             y2023: 700,  y2024: 850,  y2025: 1000, y2026: 290,  stock: 200,  porEmbarcar: 0 },
-    { cod: '2685', nombre: 'Sacapuntas metálico doble',           y2023: 2100, y2024: 2400, y2025: 2700, y2026: 810,  stock: 850,  porEmbarcar: 100 },
-    { cod: '2700', nombre: 'Corrector líquido 7ml',               y2023: 3100, y2024: 3400, y2025: 3700, y2026: 1110, stock: 1300, porEmbarcar: 200 },
-    { cod: '2715', nombre: 'Resaltador pastel set ×4',            y2023: 2600, y2024: 2900, y2025: 3200, y2026: 960,  stock: 1000, porEmbarcar: 0 },
-    { cod: '2730', nombre: 'Archivador lomo ancho A4',            y2023: 900,  y2024: 1050, y2025: 1200, y2026: 350,  stock: 250,  porEmbarcar: 50 },
-    { cod: '2745', nombre: 'Separadores plástico ×10',            y2023: 1700, y2024: 1900, y2025: 2100, y2026: 630,  stock: 600,  porEmbarcar: 0 },
-    { cod: '2760', nombre: 'Perforador 30 hojas metálico',        y2023: 450,  y2024: 580,  y2025: 700,  y2026: 195,  stock: 80,   porEmbarcar: 30 },
-    { cod: '2775', nombre: 'Engrapador 24/6 50 hojas',            y2023: 380,  y2024: 490,  y2025: 600,  y2026: 160,  stock: 60,   porEmbarcar: 20 },
-    { cod: '2790', nombre: 'Grapas 24/6 caja ×1000',              y2023: 5000, y2024: 5500, y2025: 6000, y2026: 1850, stock: 2000, porEmbarcar: 500 },
-    { cod: '2805', nombre: 'Ligas colores surtidos 100g',         y2023: 2400, y2024: 2700, y2025: 3000, y2026: 900,  stock: 900,  porEmbarcar: 0 },
-    { cod: '2820', nombre: 'Porta lápices escritorio acrílico',   y2023: 600,  y2024: 750,  y2025: 900,  y2026: 250,  stock: 150,  porEmbarcar: 0 },
-    { cod: '2835', nombre: 'Calculadora 12 dígitos',              y2023: 300,  y2024: 400,  y2025: 500,  y2026: 130,  stock: 50,   porEmbarcar: 30 },
-    { cod: '2850', nombre: 'Alfombrilla gel reposamuñecas',       y2023: 400,  y2024: 520,  y2025: 640,  y2026: 175,  stock: 90,   porEmbarcar: 0 },
-    { cod: '2865', nombre: 'Hub USB 4 puertos',                   y2023: 250,  y2024: 340,  y2025: 450,  y2026: 110,  stock: 35,   porEmbarcar: 40 },
-    { cod: '2880', nombre: 'Cable USB-C trenzado 1.5m',           y2023: 800,  y2024: 1000, y2025: 1200, y2026: 360,  stock: 300,  porEmbarcar: 100 },
-    { cod: '2895', nombre: 'Soporte celular escritorio ajustable',y2023: 350,  y2024: 460,  y2025: 580,  y2026: 150,  stock: 70,   porEmbarcar: 0 },
-    { cod: '2910', nombre: 'Mini lámpara LED cuello cisne USB',   y2023: 280,  y2024: 370,  y2025: 470,  y2026: 120,  stock: 45,   porEmbarcar: 20 },
-    { cod: '2925', nombre: 'Stickers circulares ×100',            y2023: 3800, y2024: 4200, y2025: 4600, y2026: 1400, stock: 1600, porEmbarcar: 200 },
-    { cod: '2940', nombre: 'Bolígrafo gel negro ×12',             y2023: 4500, y2024: 5000, y2025: 5500, y2026: 1700, stock: 1900, porEmbarcar: 300 },
-    { cod: '2955', nombre: 'Carpeta presentación A4 c/logo',      y2023: 1100, y2024: 1300, y2025: 1500, y2026: 430,  stock: 350,  porEmbarcar: 100 },
-    { cod: '2970', nombre: 'Papel bond 75g resma 500 hjs',        y2023: 2000, y2024: 2200, y2025: 2400, y2026: 720,  stock: 700,  porEmbarcar: 0 },
-];
-
 export default class AdminComprasService {
     buscarProductos = async (query) => {
-        const q = String(query || '').trim().toLowerCase();
+        const q = String(query || '').trim();
         if (!q) return { success: true, data: { productos: [] } };
 
-        const fuente = existsSync(CATALOG_PATH) ? CATALOG_PATH : JSON_PATH;
-        if (!existsSync(fuente)) return { success: true, data: { productos: [] } };
+        const coincidencias = await ImblascoProducto.find({
+            $and: [
+                { $or: [
+                    { nombre: { $regex: q, $options: 'i' } },
+                    { cod:    { $regex: q, $options: 'i' } },
+                ]},
+                { $expr: { $gt: [{ $add: [`$y${CY - 3}`, `$y${CY - 2}`, `$y${CY - 1}`, `$y${CY}`] }, 0] } },
+            ],
+        }).limit(100).lean();
 
-        const todos = JSON.parse(readFileSync(fuente, 'utf8'));
-        const coincidencias = todos.filter(p =>
-            p.nombre.toLowerCase().includes(q) || p.cod.toLowerCase().includes(q)
-        ).slice(0, 100);
+        if (!coincidencias.length) return { success: true, data: { productos: [], total: 0 } };
 
-        if (coincidencias.length === 0) return { success: true, data: { productos: [], total: 0 } };
-
-        // Aplicar las mismas deducciones de pedidos activos que usa getProductos
         const pedidos = await Pedido.find().lean();
         const confirmadosMap = {};
         const embarcadosMap  = {};
@@ -119,21 +54,17 @@ export default class AdminComprasService {
     };
 
     getProductos = async () => {
-        // Sin datos reales no hay nada que mostrar — el mock no tiene valor operativo
-        const fuente = existsSync(CATALOG_PATH) ? CATALOG_PATH
-                     : existsSync(JSON_PATH)     ? JSON_PATH
-                     : null;
+        const todos = await ImblascoProducto.find({
+            $or: [
+                { [`y${CY - 1}`]: { $gt: 0 } },
+                { [`y${CY}`]:     { $gt: 0 } },
+            ],
+        }).lean();
 
-        if (!fuente) return { success: true, data: { productos: [], actualizadoEl: null } };
+        if (!todos.length) return { success: true, data: { productos: [], actualizadoEl: null } };
 
-        const todos = JSON.parse(readFileSync(fuente, 'utf8'));
+        const actualizadoEl = todos[0]?.syncedAt ?? null;
 
-        // Fecha de última extracción del SQL dump (mtime del archivo JSON)
-        let actualizadoEl = null;
-        try { actualizadoEl = statSync(fuente).mtime; } catch { /* sin permisos, ignorar */ }
-
-        // Cantidades confirmadas/embarcadas desde el dashboard (MongoDB)
-        // Se descuentan de la sugerencia para no pedir de más lo ya gestionado aquí
         const pedidos = await Pedido.find().lean();
         const confirmadosMap = {};
         const embarcadosMap  = {};
@@ -144,36 +75,28 @@ export default class AdminComprasService {
             });
         });
 
-        // Calcular mesesCobertura y recalcular sugerencia en tiempo real
-        // Incluye unidades del dashboard (confirmado + embarcado) además del ERP (porEmbarcar)
         const conCobertura = todos.map(p => {
-            const proyeccion       = (p[`y${CY - 1}`] * 0.5) + (p[`y${CY - 2}`] * 0.3) + (p[`y${CY - 3}`] * 0.2);
-            const tasaMensual      = proyeccion / 12;
-            const dashConfirmado   = confirmadosMap[p.cod] ?? 0;
-            const dashEmbarcado    = embarcadosMap[p.cod]  ?? 0;
-            const totalDisponible  = (p.stock ?? 0) + (p.porEmbarcar ?? 0) + dashConfirmado + dashEmbarcado;
-            const mesesCobertura   = tasaMensual > 0 ? totalDisponible / tasaMensual : null;
-            const sugerencia       = Math.max(0, Math.round(
+            const proyeccion      = (p[`y${CY - 1}`] * 0.5) + (p[`y${CY - 2}`] * 0.3) + (p[`y${CY - 3}`] * 0.2);
+            const tasaMensual     = proyeccion / 12;
+            const dashConfirmado  = confirmadosMap[p.cod] ?? 0;
+            const dashEmbarcado   = embarcadosMap[p.cod]  ?? 0;
+            const totalDisponible = (p.stock ?? 0) + (p.porEmbarcar ?? 0) + dashConfirmado + dashEmbarcado;
+            const mesesCobertura  = tasaMensual > 0 ? totalDisponible / tasaMensual : null;
+            const sugerencia      = Math.max(0, Math.round(
                 proyeccion - (p[`y${CY}`] ?? 0) - (p.stock ?? 0) - (p.porEmbarcar ?? 0) - dashConfirmado - dashEmbarcado
             ));
             return { ...p, mesesCobertura, sugerencia };
         });
 
-        // Solo productos con actividad reciente demostrada (año actual o anterior) y demanda proyectada significativa.
         const aPedir = conCobertura.filter(p => {
             if (p.sugerencia <= 0) return false;
-
             const proy = (p[`y${CY - 1}`] * 0.5) + (p[`y${CY - 2}`] * 0.3) + (p[`y${CY - 3}`] * 0.2);
             if (proy < 100) return false;
-
-            // Requiere actividad en el año actual o el anterior — confirma que el producto sigue activo
             const tieneActividadReciente = (p[`y${CY - 1}`] ?? 0) > 0 || (p[`y${CY}`] ?? 0) > 0;
             if (!tieneActividadReciente) return false;
-
             return true;
         });
 
-        // Sort: productos con actividad en el año actual primero, luego por urgencia (mesesCobertura asc).
         aPedir.sort((a, b) => {
             const activoCyA = (a[`y${CY}`] ?? 0) > 0 ? 0 : 1;
             const activoCyB = (b[`y${CY}`] ?? 0) > 0 ? 0 : 1;
@@ -188,33 +111,11 @@ export default class AdminComprasService {
     };
 
     actualizarDatos = async () => {
-        await this._correrScript();
-        // Cerrar automáticamente los productos embarcados: ya llegaron al almacén
-        // y el cliente los ingresó al ERP antes de correr esta actualización.
         await Pedido.updateMany(
             { 'productos.estado': 'embarcado' },
             { $set: { 'productos.$[item].estado': 'recibido' } },
             { arrayFilters: [{ 'item.estado': 'embarcado' }] }
         );
         return { success: true };
-    };
-
-    _correrScript = () => {
-        const scriptPath = path.resolve(__dirname, '../../scripts/extract_compras.js');
-        return new Promise((resolve, reject) => {
-            const child = spawn('node', [scriptPath], {
-                env: { ...process.env },
-                cwd: path.resolve(__dirname, '../..'),
-            });
-            let stdout = '';
-            let stderr = '';
-            child.stdout.on('data', d => { stdout += d.toString(); });
-            child.stderr.on('data', d => { stderr += d.toString(); });
-            child.on('close', code => {
-                if (code === 0) resolve(stdout);
-                else reject(new Error(stderr || `El script terminó con código ${code}`));
-            });
-            child.on('error', reject);
-        });
     };
 }
