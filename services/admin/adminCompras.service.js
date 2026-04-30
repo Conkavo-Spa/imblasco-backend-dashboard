@@ -1,5 +1,18 @@
+import { readFileSync } from 'fs';
+import { fileURLToPath } from 'url';
+import path from 'path';
 import Pedido from '../../models/Pedido.js';
 import ImblascoProducto from '../../models/ImblascoProducto.js';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+const CODIGOS_DESCARTAR = new Set(
+    JSON.parse(readFileSync(path.resolve(__dirname, '../../data/codigos_descartar.json'), 'utf8'))
+        .map(String)
+);
+const CATALOGO_FAMILIAS = JSON.parse(
+    readFileSync(path.resolve(__dirname, '../../data/catalogo_familias.json'), 'utf8')
+);
 
 const CY = new Date().getFullYear();
 
@@ -7,6 +20,14 @@ function calcularSugerencia({ py1, py2, py3, cy, stock, porEmbarcar }) {
     const proyeccion = (py1 * 0.5) + (py2 * 0.3) + (py3 * 0.2);
     const raw = proyeccion - cy - stock - porEmbarcar;
     return Math.max(0, Math.round(raw));
+}
+
+function enriquecerProducto(p) {
+    return {
+        ...p,
+        descartado: CODIGOS_DESCARTAR.has(String(p.cod)),
+        familia:    CATALOGO_FAMILIAS[String(p.cod)] ?? 'VARIOS',
+    };
 }
 
 export default class AdminComprasService {
@@ -47,7 +68,12 @@ export default class AdminComprasService {
                 stock: (p.stock ?? 0) + (p.porEmbarcar ?? 0) + dashConfirmado + dashEmbarcado,
                 porEmbarcar: 0,
             });
-            return { ...p, sugerencia };
+            return enriquecerProducto({ ...p, sugerencia });
+        });
+
+        resultados.sort((a, b) => {
+            if (a.descartado !== b.descartado) return a.descartado ? 1 : -1;
+            return 0;
         });
 
         return { success: true, data: { productos: resultados, total: resultados.length } };
@@ -85,7 +111,7 @@ export default class AdminComprasService {
             const sugerencia      = Math.max(0, Math.round(
                 proyeccion - (p[`y${CY}`] ?? 0) - (p.stock ?? 0) - (p.porEmbarcar ?? 0) - dashConfirmado - dashEmbarcado
             ));
-            return { ...p, mesesCobertura, sugerencia };
+            return enriquecerProducto({ ...p, mesesCobertura, sugerencia });
         });
 
         const aPedir = conCobertura.filter(p => {
@@ -98,6 +124,7 @@ export default class AdminComprasService {
         });
 
         aPedir.sort((a, b) => {
+            if (a.descartado !== b.descartado) return a.descartado ? 1 : -1;
             const activoCyA = (a[`y${CY}`] ?? 0) > 0 ? 0 : 1;
             const activoCyB = (b[`y${CY}`] ?? 0) > 0 ? 0 : 1;
             if (activoCyA !== activoCyB) return activoCyA - activoCyB;
