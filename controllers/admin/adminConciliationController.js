@@ -9,6 +9,45 @@ const adminConciliationService = new AdminConciliationService();
 export default class AdminConciliationController {
 
     /**
+     * POST /api/conciliations/conciliar
+     * Body: { movement: object, cotizacion: object }
+     */
+    saveConciliacion = async (req, res) => {
+        try {
+            const { movement, cotizacion } = req.body ?? {};
+            const result = await adminConciliationService.saveConciliacion({ movement, cotizacion });
+
+            if (!result.success) {
+                const status = HTTP_STATUS_BY_CONCILIATION_CODE[result.code] || 400;
+                return res.status(status).json({ success: false, code: result.code, message: result.message });
+            }
+
+            return res.status(201).json({ success: true, code: result.code, data: result.data });
+        } catch (error) {
+            console.error('❌ AdminConciliationController — saveConciliacion:', error);
+            return res.status(500).json({ success: false, code: CONCILIATION_CODES.INTERNAL_ERROR, message: error.message });
+        }
+    };
+
+    /**
+     * GET /api/conciliations/historial
+     * Query: page=1, limit=200
+     */
+    listConciliaciones = async (req, res) => {
+        try {
+            const { page = 1, limit = 200 } = req.query;
+            const result = await adminConciliationService.listConciliaciones({
+                page: Number(page),
+                limit: Math.min(Number(limit), 1000),
+            });
+            return res.status(200).json(result);
+        } catch (error) {
+            console.error('❌ AdminConciliationController — listConciliaciones:', error);
+            return res.status(500).json({ success: false, code: CONCILIATION_CODES.INTERNAL_ERROR, message: error.message });
+        }
+    };
+
+    /**
      * GET /api/conciliations/cotizaciones
      * Query: since=YYYY-MM-DD, until=YYYY-MM-DD, page=1, limit=50
      */

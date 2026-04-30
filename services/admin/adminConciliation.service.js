@@ -9,6 +9,7 @@ import {
     filterMatchingDeposits,
 } from '../../libs/fintocClient.js';
 import Cotizacion from '../../models/Cotizacion.js';
+import Conciliacion from '../../models/Conciliacion.js';
 
 function isValidYmd(s) {
     if (typeof s !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
@@ -73,6 +74,60 @@ function mapCotizacionToDto(doc) {
 }
 
 export default class AdminConciliationService {
+
+    /**
+     * Guarda una conciliación en MongoDB.
+     * POST /api/conciliations/conciliar
+     */
+    saveConciliacion = async ({ movement, cotizacion }) => {
+        if (!movement?.id || !cotizacion?.id) {
+            return {
+                success: false,
+                code: CONCILIATION_CODES.INVALID_PARAMS,
+                message: 'movement.id y cotizacion.id son obligatorios',
+            };
+        }
+
+        const existing = await Conciliacion.findOne({ movement_id: movement.id });
+        if (existing) {
+            return {
+                success: false,
+                code: CONCILIATION_CODES.ALREADY_CONCILIATED,
+                message: `El movimiento ${movement.id} ya fue conciliado`,
+            };
+        }
+
+        const doc = await Conciliacion.create({
+            movement_id: movement.id,
+            cotizacion_id: Number(cotizacion.id),
+            monto: movement.amount,
+            fecha_movimiento: movement.post_date ? String(movement.post_date).slice(0, 10) : null,
+            bank_name: movement.bank_name ?? null,
+            cliente: cotizacion.cliente ?? null,
+            rut: cotizacion.rut ?? null,
+            movement,
+            cotizacion,
+        });
+
+        return { success: true, code: CONCILIATION_CODES.OK, data: doc };
+    };
+
+    /**
+     * Lista todas las conciliaciones guardadas.
+     * GET /api/conciliations/historial
+     */
+    listConciliaciones = async ({ page = 1, limit = 200 } = {}) => {
+        const skip = (Math.max(1, page) - 1) * limit;
+        const [docs, total] = await Promise.all([
+            Conciliacion.find().sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
+            Conciliacion.countDocuments(),
+        ]);
+        return {
+            success: true,
+            code: CONCILIATION_CODES.OK,
+            data: { total, page: Number(page), limit: Number(limit), conciliaciones: docs },
+        };
+    };
 
     /**
      * Lista cotizaciones desde MongoDB con filtro opcional por rango de fecha.
