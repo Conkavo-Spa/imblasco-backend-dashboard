@@ -53,6 +53,7 @@ function mapFintocMovementToDto(m) {
         sender_account: mapTransferAccount(m.sender_account),
         recipient_account: mapTransferAccount(m.recipient_account),
         // Datos de la cuenta bancaria receptora (para filtro por banco en UI)
+        bank_name: m.bank_name ?? null,
         account_id: m.account_id ?? null,
         account_number: m.account_number ?? null,
         account_holder: m.account_holder ?? null,
@@ -243,14 +244,12 @@ export default class AdminConciliationService {
             };
         }
 
+        // Cualquier abono (amount > 0) que no sea un cheque — Fintoc usa tipos
+        // variados por banco ('transfer', 'credit', 'other', etc.)
         const inbound = movements.filter((m) => {
             if (!(typeof m.amount === 'number' && m.amount > 0)) return false;
             const typeNorm = String(m.type || '').toLowerCase();
-            if (typeNorm === 'check') return false;
-            if (typeNorm === 'transfer') return true;
-            const hasParty = m.sender_account != null || m.recipient_account != null;
-            if (!m.type && hasParty) return true;
-            return false;
+            return typeNorm !== 'check';
         });
 
         const dtos = inbound.map((m) => mapFintocMovementToDto(m));
