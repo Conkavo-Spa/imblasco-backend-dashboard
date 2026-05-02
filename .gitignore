@@ -6,5 +6,7 @@ node_modules/
 tmp/
 *.log
 .DS_Store
-data/
+data/*
+!data/codigos_descartar.json
+!data/catalogo_familias.json
 

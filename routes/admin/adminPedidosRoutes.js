@@ -5,6 +5,7 @@ const router = express.Router();
 const controller = new AdminPedidosController();
 
 router.post('/pedidos', controller.guardarPedido);
+router.post('/pedidos/confirmar-recibidos', controller.confirmarRecibidos);
 router.get('/pedidos/confirmados', controller.getConfirmados);
 router.get('/pedidos/embarcados', controller.getEmbarcados);
 router.get('/pedidos', controller.getPedidos);

@@ -12,9 +12,10 @@ export default class AdminPedidosService {
     }
 
     async actualizarProductos(id, { productos }) {
+        const totalUnidades = productos.reduce((sum, p) => sum + (p.cantidad ?? 0), 0);
         const pedido = await Pedido.findByIdAndUpdate(
             id,
-            { productos },
+            { productos, totalUnidades },
             { new: true }
         ).lean();
         if (!pedido) return { success: false, message: 'Pedido no encontrado' };
@@ -33,8 +34,6 @@ export default class AdminPedidosService {
         return { success: true };
     }
 
-    // Agrega unidades confirmadas (X Embarcar) por código de producto.
-    // El cliente lo marca cuando confirma el pedido — antes de recibir documentación del proveedor.
     async getConfirmados() {
         const pedidos = await Pedido.find().lean();
         const totales = {};
@@ -48,8 +47,6 @@ export default class AdminPedidosService {
         return { success: true, data: totales };
     }
 
-    // Agrega unidades embarcadas por código de producto a través de todos los pedidos.
-    // Solo incluye 'embarcado': el cliente lo marca manualmente cuando recibe la documentación del proveedor.
     async getEmbarcados() {
         const pedidos = await Pedido.find().lean();
         const totales = {};
@@ -61,5 +58,48 @@ export default class AdminPedidosService {
             });
         });
         return { success: true, data: totales };
+    }
+
+    // Recibe items [{ cod, cantidadRecibida }] del Excel conciliado.
+    // Distribuye oldest-first: llena pedidos más viejos primero.
+    // Si cantidadRecibida >= cantidad pedida → recibido
+    // Si cantidadRecibida < cantidad pedida  → incompleto + guarda cantidadRecibida
+    async confirmarRecibidos(items) {
+        const codMap = {};
+        items.forEach(i => { codMap[i.cod] = i.cantidadRecibida; });
+
+        const pedidos = await Pedido.find({
+            productos: {
+                $elemMatch: {
+                    cod:    { $in: Object.keys(codMap) },
+                    estado: { $in: ['pendiente', 'confirmado', 'embarcado', 'incompleto'] },
+                },
+            },
+        }).sort({ createdAt: 1 });
+
+        const restante = { ...codMap };
+
+        for (const pedido of pedidos) {
+            let modified = false;
+            for (const prod of pedido.productos) {
+                if (!Object.prototype.hasOwnProperty.call(restante, prod.cod)) continue;
+                if (!['pendiente', 'confirmado', 'embarcado', 'incompleto'].includes(prod.estado)) continue;
+
+                const disponible = restante[prod.cod];
+                if (disponible >= prod.cantidad) {
+                    prod.cantidadRecibida = prod.cantidad;
+                    prod.estado = 'recibido';
+                    restante[prod.cod] -= prod.cantidad;
+                } else if (disponible > 0) {
+                    prod.cantidadRecibida = disponible;
+                    prod.estado = 'incompleto';
+                    restante[prod.cod] = 0;
+                }
+                modified = true;
+            }
+            if (modified) await pedido.save();
+        }
+
+        return { success: true };
     }
 }

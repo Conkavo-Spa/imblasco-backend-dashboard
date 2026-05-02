@@ -8,7 +8,8 @@
     "start": "cross-env ENV_FILE=.env.production node server.js",
     "staging": "cross-env ENV_FILE=.env.staging node server.js",
     "dev": "cross-env ENV_FILE=.env.development nodemon server.js",
-    "extract-compras": "node scripts/extract_compras.js"
+    "extract-compras": "node scripts/extract_compras.js",
+    "seed": "cross-env ENV_FILE=.env.development node scripts/seed_dev.js"
   },
   "keywords": [],
   "author": "",
@@ -32,6 +33,7 @@
   },
   "devDependencies": {
     "cross-env": "^10.1.0",
-    "nodemon": "^3.1.10"
+    "nodemon": "^3.1.10",
+    "xlsx": "^0.18.5"
   }
 }
