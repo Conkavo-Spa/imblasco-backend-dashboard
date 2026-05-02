@@ -86,12 +86,14 @@ export default class AdminPedidosService {
                 if (!['pendiente', 'confirmado', 'embarcado', 'incompleto'].includes(prod.estado)) continue;
 
                 const disponible = restante[prod.cod];
-                if (disponible >= prod.cantidad) {
+                const ya = prod.estado === 'incompleto' ? (prod.cantidadRecibida ?? 0) : 0;
+                const pendiente = prod.cantidad - ya;
+                if (disponible >= pendiente) {
                     prod.cantidadRecibida = prod.cantidad;
                     prod.estado = 'recibido';
-                    restante[prod.cod] -= prod.cantidad;
+                    restante[prod.cod] -= pendiente;
                 } else if (disponible > 0) {
-                    prod.cantidadRecibida = disponible;
+                    prod.cantidadRecibida = ya + disponible;
                     prod.estado = 'incompleto';
                     restante[prod.cod] = 0;
                 }
