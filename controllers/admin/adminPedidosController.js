@@ -7,6 +7,9 @@ export default class AdminPedidosController {
     guardarPedido = async (req, res) => {
         try {
             const { productos, totalUnidades } = req.body;
+            if (!Array.isArray(productos) || productos.length === 0) {
+                return res.status(400).json({ success: false, message: 'El pedido debe tener al menos un producto.' });
+            }
             const result = await service.guardarPedido({ productos, totalUnidades });
             return res.status(201).json(result);
         } catch (error) {
@@ -84,6 +87,21 @@ export default class AdminPedidosController {
             return res.status(200).json(result);
         } catch (error) {
             console.error('❌ AdminPedidosController — getEmbarcados:', error);
+            return res.status(500).json({ success: false, message: error.message });
+        }
+    };
+
+    // POST /api/pedidos/confirmar-recibidos
+    confirmarRecibidos = async (req, res) => {
+        try {
+            const { items } = req.body;
+            if (!Array.isArray(items) || items.length === 0) {
+                return res.status(400).json({ success: false, message: 'items requerido' });
+            }
+            const result = await service.confirmarRecibidos(items);
+            return res.status(200).json(result);
+        } catch (error) {
+            console.error('❌ AdminPedidosController — confirmarRecibidos:', error);
             return res.status(500).json({ success: false, message: error.message });
         }
     };
