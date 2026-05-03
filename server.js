@@ -57,11 +57,13 @@ import AdminConversationsRoutes from './routes/admin/adminConversationsRoutes.js
 import AdminEmailConversationsRoutes from './routes/admin/adminEmailConversationsRoutes.js';
 import AdminComprasRoutes from './routes/admin/adminComprasRoutes.js';
 import AdminPedidosRoutes from './routes/admin/adminPedidosRoutes.js';
+import AdminSyncStockRoutes from './routes/admin/adminSyncStockRoutes.js';
 
 app.use('/api', AdminConversationsRoutes);
 app.use('/api', AdminEmailConversationsRoutes);
 app.use('/api', AdminComprasRoutes);
 app.use('/api', AdminPedidosRoutes);
+app.use('/api', AdminSyncStockRoutes);
 
 // Ruta de prueba
 app.get('/api/health', (req, res) => {
