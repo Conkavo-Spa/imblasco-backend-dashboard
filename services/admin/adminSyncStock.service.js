@@ -3,7 +3,7 @@ import SyncTrigger from '../../models/SyncTrigger.js';
 export default class AdminSyncStockService {
 
     triggerSync = async () => {
-        const STALE_MS = 5 * 60 * 1000;
+        const STALE_MS = 15 * 60 * 1000;
         const hace5min = new Date(Date.now() - STALE_MS);
         const activo = await SyncTrigger.findOne({
             status: { $in: ['pending', 'running'] },
