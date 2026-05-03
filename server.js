@@ -58,12 +58,14 @@ import AdminEmailConversationsRoutes from './routes/admin/adminEmailConversation
 import AdminConciliationRoutes from './routes/admin/adminConciliationRoutes.js';
 import AdminComprasRoutes from './routes/admin/adminComprasRoutes.js';
 import AdminPedidosRoutes from './routes/admin/adminPedidosRoutes.js';
+import AdminSyncStockRoutes from './routes/admin/adminSyncStockRoutes.js';
 
 app.use('/api', AdminConversationsRoutes);
 app.use('/api', AdminEmailConversationsRoutes);
 app.use('/api', AdminConciliationRoutes);
 app.use('/api', AdminComprasRoutes);
 app.use('/api', AdminPedidosRoutes);
+app.use('/api', AdminSyncStockRoutes);
 
 // Ruta de prueba
 app.get('/api/health', (req, res) => {
