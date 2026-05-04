@@ -123,14 +123,7 @@ export default class AdminComprasService {
             return enriquecerProducto({ ...p, mesesCobertura, sugerencia });
         });
 
-        const aPedir = conCobertura.filter(p => {
-            if (p.sugerencia <= 0) return false;
-            const proy = (p[`y${CY - 1}`] * 0.5) + (p[`y${CY - 2}`] * 0.3) + (p[`y${CY - 3}`] * 0.2);
-            if (proy < 100) return false;
-            const tieneActividadReciente = (p[`y${CY - 1}`] ?? 0) > 0 || (p[`y${CY}`] ?? 0) > 0;
-            if (!tieneActividadReciente) return false;
-            return true;
-        });
+        const aPedir = conCobertura.filter(p => p.sugerencia > 0);
 
         aPedir.sort((a, b) => {
             // Descartados siempre al final
