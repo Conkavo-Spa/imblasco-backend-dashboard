@@ -90,7 +90,7 @@ export default class AdminComprasService {
                 { [`y${CY - 1}`]: { $gt: 0 } },
                 { [`y${CY}`]:     { $gt: 0 } },
             ],
-        }).lean();
+        }).sort({ syncedAt: -1 }).lean();
 
         if (!todos.length) return { success: true, data: { productos: [], actualizadoEl: null } };
 
