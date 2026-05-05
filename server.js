@@ -5,6 +5,8 @@ import fileUpload from 'express-fileupload';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import connectMongoDB from './libs/mongoose.js';
+import { ensureIndexesCotABlas } from './libs/cotABlas.js';
+import { getNativeMongoDb } from './libs/mongoNativeDb.js';
 
 // Permite elegir archivo de variables por ambiente:
 // ENV_FILE=.env.production npm start
@@ -25,6 +27,13 @@ const app = express();
 
 // Conectar a MongoDB antes de levantar el servidor
 await connectMongoDB();
+
+try {
+    await ensureIndexesCotABlas(getNativeMongoDb());
+    console.log('✅ Índices cot_a_blas (cotizacion_clave único) listos');
+} catch (e) {
+    console.error('❌ ensureIndexesCotABlas:', e?.message || e);
+}
 
 // Middleware CORS
 const allowedOrigins = (process.env.ALLOWED_ORIGINS || '').split(',').filter(Boolean);

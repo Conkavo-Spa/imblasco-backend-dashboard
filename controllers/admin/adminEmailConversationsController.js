@@ -67,6 +67,25 @@ export default class AdminEmailConversationsController {
         }
     };
 
+    responderCotABlas = async (req, res) => {
+        try {
+            const { email_id, thread_id } = req.body || {};
+            const response = await AdminEmailConversations.responderCotABlas({ email_id, thread_id });
+            let status = 200;
+            if (!response.success) {
+                if (String(response.message || '').includes('No se encontró')) status = 404;
+                else status = 400;
+            }
+            return res.status(status).json(response);
+        } catch (error) {
+            console.error('❌ Controller - responderCotABlas:', error);
+            return res.status(500).json({
+                success: false,
+                message: error.message || 'Error inesperado en el servidor',
+            });
+        }
+    };
+
     setEmailMessageFeedback = async (req, res) => {
         try {
             const { id, messageId } = req.params;

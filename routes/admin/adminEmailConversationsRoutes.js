@@ -5,6 +5,7 @@ const router = express.Router();
 const adminEmailConversationsController = new AdminEmailConversationsController();
 
 // Emails (conversationmaildash)
+router.post('/emails/cot-a-blas/responder', adminEmailConversationsController.responderCotABlas);
 router.get('/emails', adminEmailConversationsController.getAllEmailConversations);
 router.put('/emails/:id/messages/:messageId/feedback', adminEmailConversationsController.setEmailMessageFeedback);
 router.delete('/emails/:id', adminEmailConversationsController.deleteEmailConversation);

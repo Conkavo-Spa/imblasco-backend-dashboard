@@ -1,4 +1,8 @@
 import ConversationMailDash from '../../models/ConversationMailDash.js';
+import { getNativeMongoDb } from '../../libs/mongoNativeDb.js';
+import { upsertCotizacionBlasPendienteDesdeEmailsRaw } from '../../libs/cotABlas.js';
+
+const EMAILS_RAW_COLLECTION = 'emails_raw';
 
 export default class AdminEmailConversationsService {
     getAllEmailConversations = async (options = {}) => {
@@ -79,6 +83,53 @@ export default class AdminEmailConversationsService {
         } catch (error) {
             console.error('❌ Servicio - error al guardar corregido (email):', error);
             throw new Error('No se pudo guardar "Corregido"');
+        }
+    };
+
+    /**
+     * Registra cotización pendiente en cot_a_blas desde emails_raw (source: system).
+     * @param {{ email_id?: string, thread_id?: string }} ids
+     */
+    responderCotABlas = async (ids = {}) => {
+        const thread_id = ids.thread_id != null ? String(ids.thread_id).trim() : '';
+        const email_id = ids.email_id != null ? String(ids.email_id).trim() : '';
+
+        if (!thread_id && !email_id) {
+            return {
+                success: false,
+                message: 'Se requiere thread_id y/o email_id',
+            };
+        }
+
+        const db = getNativeMongoDb();
+        const filter = { source: 'system' };
+        if (thread_id) filter.thread_id = thread_id;
+        else filter.email_id = email_id;
+
+        const emailDoc = await db.collection(EMAILS_RAW_COLLECTION).findOne(filter);
+
+        if (!emailDoc) {
+            return {
+                success: false,
+                message: 'No se encontró emails_raw (source: system) para los identificadores indicados',
+            };
+        }
+
+        try {
+            const data = await upsertCotizacionBlasPendienteDesdeEmailsRaw(db, emailDoc);
+            return {
+                success: true,
+                message: 'Cotización registrada como pendiente',
+                data,
+            };
+        } catch (err) {
+            if (err.code === 'COT_A_BLAS_DATOS_INCOMPLETOS' || err.code === 'COT_A_BLAS_SIN_CLAVE') {
+                return {
+                    success: false,
+                    message: err.message || 'Datos insuficientes en emails_raw',
+                };
+            }
+            throw err;
         }
     };
 
