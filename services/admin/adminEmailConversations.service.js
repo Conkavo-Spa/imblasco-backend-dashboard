@@ -1,6 +1,7 @@
 import ConversationMailDash from '../../models/ConversationMailDash.js';
 import { getNativeMongoDb } from '../../libs/mongoNativeDb.js';
 import { upsertCotizacionBlasPendienteDesdeEmailsRaw } from '../../libs/cotABlas.js';
+import { enviarCotizacionDesdeDashboard } from '../../libs/enviarCotizacionDesdeDashboard.js';
 
 const EMAILS_RAW_COLLECTION = 'emails_raw';
 
@@ -128,6 +129,50 @@ export default class AdminEmailConversationsService {
                     success: false,
                     message: err.message || 'Datos insuficientes en emails_raw',
                 };
+            }
+            throw err;
+        }
+    };
+
+    /**
+     * Envía cotización por SMTP (paridad Programa 8), parchea número en PDF y actualiza conversationmaildash.
+     * @param {{ conversation_id: string, thread_id?: string, email_id?: string, mode?: 'test'|'prod', numero_cotizacion?: string }} body
+     */
+    enviarRespuestaCotizacionDashboard = async (body = {}) => {
+        const conversation_id =
+            body.conversation_id != null ? String(body.conversation_id).trim() : '';
+        if (!conversation_id) {
+            return { success: false, message: 'conversation_id es requerido' };
+        }
+
+        const conversation = await ConversationMailDash.findById(conversation_id);
+        if (!conversation) {
+            return { success: false, message: 'Conversación no encontrada' };
+        }
+
+        const db = getNativeMongoDb();
+        const thread_id =
+            body.thread_id != null && String(body.thread_id).trim()
+                ? String(body.thread_id).trim()
+                : String(conversation.external?.threadId || '').trim();
+        const email_id = body.email_id != null ? String(body.email_id).trim() : '';
+        const mode = body.mode === 'prod' || body.mode === 'test' ? body.mode : undefined;
+        const numero_cotizacion =
+            body.numero_cotizacion != null ? String(body.numero_cotizacion).trim() : undefined;
+
+        try {
+            return await enviarCotizacionDesdeDashboard({
+                db,
+                conversation,
+                thread_id,
+                email_id: email_id || undefined,
+                mode,
+                numero_cotizacion,
+            });
+        } catch (err) {
+            console.error('❌ enviarRespuestaCotizacionDashboard:', err);
+            if (err.code === 'MAIL_ENV_MISSING') {
+                return { success: false, message: err.message, code: err.code };
             }
             throw err;
         }

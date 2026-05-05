@@ -96,6 +96,8 @@ const conversationMailDashSchema = new Schema(
                         isRead: { type: Boolean, default: false }
                     },
                     feedback: { type: String, trim: false, default: '' },
+                    /** PDF en base64 (p. ej. cotización enviada), opcional */
+                    pdf_base64: { type: String, trim: false, default: null },
                     sentAt: { type: Date, required: true },
                     createdAt: { type: Date, default: Date.now }
                 }
