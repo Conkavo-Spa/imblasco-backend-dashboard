@@ -70,7 +70,8 @@ function formatRutChile(rut, digcli) {
 }
 
 function mapCotizacionToDto(doc) {
-    const rutcli = formatRutChile(doc.rutcli, doc.digcli);
+    const digcli = doc.digcli ?? doc.cliente?.digcli;
+    const rutcli = formatRutChile(doc.rutcli, digcli);
     return {
         cotizacion: doc.cotizacion,
         rutcli,
