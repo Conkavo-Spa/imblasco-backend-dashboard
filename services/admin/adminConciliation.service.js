@@ -62,8 +62,14 @@ function mapFintocMovementToDto(m) {
     };
 }
 
+function formatRutChile(rut, digcli) {
+    if (!rut || !digcli) return null;
+    const rutStr = String(rut).padStart(8, '0');
+    return `${rutStr.slice(0, 2)}.${rutStr.slice(2, 5)}.${rutStr.slice(5, 8)}-${digcli}`;
+}
+
 function mapCotizacionToDto(doc) {
-    const rutcli = doc.rutcli && doc.digcli ? `${doc.rutcli}-${doc.digcli}` : (doc.rutcli ?? null);
+    const rutcli = formatRutChile(doc.rutcli, doc.digcli);
     return {
         cotizacion: doc.cotizacion,
         rutcli,
