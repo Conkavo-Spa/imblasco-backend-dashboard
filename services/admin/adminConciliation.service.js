@@ -63,9 +63,10 @@ function mapFintocMovementToDto(m) {
 }
 
 function mapCotizacionToDto(doc) {
+    const rutcli = doc.rutcli && doc.digcli ? `${doc.rutcli}-${doc.digcli}` : (doc.rutcli ?? null);
     return {
         cotizacion: doc.cotizacion,
-        rutcli: doc.rutcli ?? null,
+        rutcli,
         razon_social: doc.cliente?.razon_social ?? null,
         fecha: doc.fecha ? dayjs(doc.fecha).format('YYYY-MM-DD') : null,
         monto: doc.totales?.totgen ?? null,
