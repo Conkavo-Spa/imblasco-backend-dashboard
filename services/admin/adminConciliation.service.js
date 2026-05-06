@@ -63,9 +63,10 @@ function mapFintocMovementToDto(m) {
 }
 
 function formatRutChile(rut, digcli) {
-    if (!rut || !digcli) return null;
+    if (!rut) return null;
     const rutStr = String(rut).padStart(8, '0');
-    return `${rutStr.slice(0, 2)}.${rutStr.slice(2, 5)}.${rutStr.slice(5, 8)}-${digcli}`;
+    const formatted = `${rutStr.slice(0, 2)}.${rutStr.slice(2, 5)}.${rutStr.slice(5, 8)}`;
+    return digcli ? `${formatted}-${digcli}` : formatted;
 }
 
 function mapCotizacionToDto(doc) {
