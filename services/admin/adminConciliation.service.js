@@ -1,4 +1,7 @@
 import dayjs from 'dayjs';
+import fs from 'fs/promises';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import {
     CONCILIATION_CODES,
 } from '../../constants/adminConciliation.constants.js';
@@ -308,12 +311,11 @@ export default class AdminConciliationService {
             };
         }
 
-        // Cualquier abono (amount > 0) que no sea un cheque — Fintoc usa tipos
-        // variados por banco ('transfer', 'credit', 'other', etc.)
+        // Cualquier abono (amount > 0) — transferencias, cheques, depósitos, etc.
+        // Fintoc usa tipos variados por banco ('transfer', 'check', 'credit', 'other', etc.)
         const inbound = movements.filter((m) => {
             if (!(typeof m.amount === 'number' && m.amount > 0)) return false;
-            const typeNorm = String(m.type || '').toLowerCase();
-            return typeNorm !== 'check';
+            return true;
         });
 
         const dtos = inbound.map((m) => mapFintocMovementToDto(m));
@@ -329,5 +331,75 @@ export default class AdminConciliationService {
             code: CONCILIATION_CODES.OK,
             data: { movements: dtos },
         };
+    };
+
+    /**
+     * Lee movimientos desde el archivo JSON local (data/movimientos_fintoc.json)
+     * GET /api/conciliations/movements-from-json?since=YYYY-MM-DD&until=YYYY-MM-DD
+     */
+    listMovementsFromJson = async (sinceYmd, untilInclusiveYmd) => {
+        const since = typeof sinceYmd === 'string' ? sinceYmd.trim() : '';
+        const untilIn = typeof untilInclusiveYmd === 'string' ? untilInclusiveYmd.trim() : '';
+        if (!isValidYmd(since) || !isValidYmd(untilIn)) {
+            return {
+                success: false,
+                code: CONCILIATION_CODES.INVALID_PARAMS,
+                message: 'since y until deben ser fechas YYYY-MM-DD válidas',
+            };
+        }
+        if (dayjs(since).isAfter(dayjs(untilIn), 'day')) {
+            return {
+                success: false,
+                code: CONCILIATION_CODES.INVALID_PARAMS,
+                message: 'since no puede ser posterior a until',
+            };
+        }
+
+        try {
+            const __filename = fileURLToPath(import.meta.url);
+            const __dirname = path.dirname(__filename);
+            const filepath = path.join(__dirname, '../../data/movimientos_fintoc.json');
+
+            const content = await fs.readFile(filepath, 'utf8');
+            const data = JSON.parse(content);
+
+            if (!Array.isArray(data?.movements)) {
+                return {
+                    success: false,
+                    code: CONCILIATION_CODES.INVALID_PARAMS,
+                    message: 'Archivo JSON inválido o sin movimientos',
+                };
+            }
+
+            const sinceDate = dayjs(since).toDate();
+            const untilDate = dayjs(untilIn).endOf('day').toDate();
+
+            const filtered = data.movements.filter((m) => {
+                if (!(typeof m.amount === 'number' && m.amount > 0)) return false;
+                const postDate = m.post_date ? new Date(m.post_date) : null;
+                if (!postDate || isNaN(postDate.getTime())) return false;
+                return postDate >= sinceDate && postDate <= untilDate;
+            });
+
+            filtered.sort((a, b) => {
+                const da = String(a.post_date || '');
+                const db = String(b.post_date || '');
+                if (da !== db) return db.localeCompare(da);
+                return (b.amount || 0) - (a.amount || 0);
+            });
+
+            return {
+                success: true,
+                code: CONCILIATION_CODES.OK,
+                data: { movements: filtered },
+            };
+        } catch (e) {
+            console.error('❌ AdminConciliationService — error reading JSON:', e);
+            return {
+                success: false,
+                code: CONCILIATION_CODES.FINTOC_ERROR,
+                message: e.message || 'Error al leer archivo JSON',
+            };
+        }
     };
 }

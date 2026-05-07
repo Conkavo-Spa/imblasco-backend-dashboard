@@ -19,4 +19,7 @@ router.get('/conciliations/cotizaciones/:cotizacionId/payment-status', controlle
 // Lista transferencias entrantes desde Fintoc
 router.get('/conciliations/movements', controller.listMovements);
 
+// Lista movimientos desde JSON local (en lugar de Fintoc)
+router.get('/conciliations/movements-from-json', controller.listMovementsFromJson);
+
 export default router;
