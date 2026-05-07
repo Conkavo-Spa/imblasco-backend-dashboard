@@ -402,4 +402,43 @@ export default class AdminConciliationService {
             };
         }
     };
+
+    /**
+     * GET /api/conciliations/cotizaciones/:cotizacionId/detalle
+     * Retorna la cotización completa con array de productos (detalle)
+     */
+    getCotizacionDetalle = async (cotizacionId) => {
+        const idNum = Number(String(cotizacionId ?? '').trim());
+        if (!idNum || isNaN(idNum)) {
+            return {
+                success: false,
+                code: CONCILIATION_CODES.INVALID_ID,
+                message: 'El id de cotización debe ser un número válido',
+            };
+        }
+
+        try {
+            const cotizacion = await Cotizacion.findOne({ cotizacion: idNum }).lean();
+            if (!cotizacion) {
+                return {
+                    success: false,
+                    code: CONCILIATION_CODES.NOT_FOUND,
+                    message: `Cotización ${idNum} no encontrada`,
+                };
+            }
+
+            return {
+                success: true,
+                code: CONCILIATION_CODES.OK,
+                data: cotizacion,
+            };
+        } catch (e) {
+            console.error('❌ AdminConciliationService — getCotizacionDetalle:', e);
+            return {
+                success: false,
+                code: CONCILIATION_CODES.FINTOC_ERROR,
+                message: e.message || 'Error al obtener detalle de cotización',
+            };
+        }
+    };
 }

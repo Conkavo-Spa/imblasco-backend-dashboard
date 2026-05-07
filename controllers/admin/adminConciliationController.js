@@ -74,6 +74,39 @@ export default class AdminConciliationController {
     };
 
     /**
+     * GET /api/conciliations/cotizaciones/:cotizacionId/detalle
+     * Retorna cotización completa con productos (detalle)
+     */
+    getCotizacionDetalle = async (req, res) => {
+        try {
+            const { cotizacionId } = req.params;
+            const result = await adminConciliationService.getCotizacionDetalle(cotizacionId);
+
+            if (!result.success) {
+                const status = HTTP_STATUS_BY_CONCILIATION_CODE[result.code] || 400;
+                return res.status(status).json({
+                    success: false,
+                    code: result.code,
+                    message: result.message,
+                });
+            }
+
+            return res.status(200).json({
+                success: true,
+                code: result.code,
+                data: result.data,
+            });
+        } catch (error) {
+            console.error('❌ AdminConciliationController — getCotizacionDetalle:', error);
+            return res.status(500).json({
+                success: false,
+                code: CONCILIATION_CODES.INTERNAL_ERROR,
+                message: error.message || 'Error inesperado en el servidor',
+            });
+        }
+    };
+
+    /**
      * GET /api/conciliations/cotizaciones/:cotizacionId/payment-status
      * Busca la cotización en MongoDB y cruza contra Fintoc.
      * No requiere fecha ni monto en query — los obtiene de la BD.

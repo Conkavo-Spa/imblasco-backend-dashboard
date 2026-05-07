@@ -13,6 +13,9 @@ router.get('/conciliations/historial', controller.listConciliaciones);
 // Lista cotizaciones desde MongoDB (cotizaciones_emitidas)
 router.get('/conciliations/cotizaciones', controller.listCotizaciones);
 
+// Retorna cotización completa con detalle (productos)
+router.get('/conciliations/cotizaciones/:cotizacionId/detalle', controller.getCotizacionDetalle);
+
 // Cruza una cotización de MongoDB contra transferencias Fintoc
 router.get('/conciliations/cotizaciones/:cotizacionId/payment-status', controller.getQuotePaymentStatus);
 
