@@ -9,4 +9,5 @@ tmp/
 data/*
 !data/codigos_descartar.json
 !data/catalogo_familias.json
+!data/movimientos_fintoc.json
 
