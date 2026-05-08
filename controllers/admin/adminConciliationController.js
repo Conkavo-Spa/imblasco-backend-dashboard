@@ -74,6 +74,32 @@ export default class AdminConciliationController {
     };
 
     /**
+     * GET /api/conciliations/facturas
+     * Query: since=YYYY-MM-DD, until=YYYY-MM-DD, page=1, limit=50
+     */
+    listFacturas = async (req, res) => {
+        try {
+            const { since, until, page = 1, limit = 50 } = req.query;
+
+            const result = await adminConciliationService.listFacturas({
+                since,
+                until,
+                page: Number(page),
+                limit: Math.min(Number(limit), 1000),
+            });
+
+            return res.status(200).json(result);
+        } catch (error) {
+            console.error('❌ AdminConciliationController — listFacturas:', error);
+            return res.status(500).json({
+                success: false,
+                code: CONCILIATION_CODES.INTERNAL_ERROR,
+                message: error.message || 'Error inesperado en el servidor',
+            });
+        }
+    };
+
+    /**
      * GET /api/conciliations/cotizaciones/:cotizacionId/detalle
      * Retorna cotización completa con productos (detalle)
      */

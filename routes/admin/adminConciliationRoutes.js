@@ -13,6 +13,9 @@ router.get('/conciliations/historial', controller.listConciliaciones);
 // Lista cotizaciones desde MongoDB (cotizaciones_emitidas)
 router.get('/conciliations/cotizaciones', controller.listCotizaciones);
 
+// Lista facturas desde MongoDB (facturas_emitidas)
+router.get('/conciliations/facturas', controller.listFacturas);
+
 // Retorna cotización completa con detalle (productos)
 router.get('/conciliations/cotizaciones/:cotizacionId/detalle', controller.getCotizacionDetalle);
 

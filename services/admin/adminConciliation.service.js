@@ -12,6 +12,7 @@ import {
     filterMatchingDeposits,
 } from '../../libs/fintocClient.js';
 import Cotizacion from '../../models/Cotizacion.js';
+import Factura from '../../models/Factura.js';
 import Conciliacion from '../../models/Conciliacion.js';
 
 function isValidYmd(s) {
@@ -85,18 +86,46 @@ function mapCotizacionToDto(doc) {
     };
 }
 
+function mapFacturaToDto(doc) {
+    const rutcli = formatRutChile(doc.rutcli, null);
+    return {
+        factura: doc.factura,
+        cotizacion_ref: doc.cotizacion ?? null,
+        rutcli,
+        fecha: doc.fecha ? dayjs(doc.fecha).format('YYYY-MM-DD') : null,
+        monto: doc.totgen ?? null,
+    };
+}
+
 export default class AdminConciliationService {
 
     /**
      * Guarda una conciliación en MongoDB.
      * POST /api/conciliations/conciliar
+     * @param {object} params - { movement, cotizacion?, factura?, document_type: 'cotizacion'|'factura' }
      */
-    saveConciliacion = async ({ movement, cotizacion }) => {
-        if (!movement?.id || !cotizacion?.id) {
+    saveConciliacion = async ({ movement, cotizacion, factura, document_type = 'cotizacion' }) => {
+        if (!movement?.id) {
             return {
                 success: false,
                 code: CONCILIATION_CODES.INVALID_PARAMS,
-                message: 'movement.id y cotizacion.id son obligatorios',
+                message: 'movement.id es obligatorio',
+            };
+        }
+
+        if (document_type === 'factura' && !factura?.id) {
+            return {
+                success: false,
+                code: CONCILIATION_CODES.INVALID_PARAMS,
+                message: 'factura.id es obligatorio cuando document_type es "factura"',
+            };
+        }
+
+        if (document_type === 'cotizacion' && !cotizacion?.id) {
+            return {
+                success: false,
+                code: CONCILIATION_CODES.INVALID_PARAMS,
+                message: 'cotizacion.id es obligatorio cuando document_type es "cotizacion"',
             };
         }
 
@@ -109,17 +138,28 @@ export default class AdminConciliationService {
             };
         }
 
-        const doc = await Conciliacion.create({
+        const docData = {
             movement_id: movement.id,
-            cotizacion_id: Number(cotizacion.id),
+            document_type,
             monto: movement.amount,
             fecha_movimiento: movement.post_date ? String(movement.post_date).slice(0, 10) : null,
             bank_name: movement.bank_name ?? null,
-            cliente: cotizacion.cliente ?? null,
-            rut: cotizacion.rut ?? null,
             movement,
-            cotizacion,
-        });
+        };
+
+        if (document_type === 'factura' && factura) {
+            docData.factura_id = Number(factura.id);
+            docData.cliente = factura.cliente ?? null;
+            docData.rut = factura.rut ?? null;
+            docData.factura = factura;
+        } else if (document_type === 'cotizacion' && cotizacion) {
+            docData.cotizacion_id = Number(cotizacion.id);
+            docData.cliente = cotizacion.cliente ?? null;
+            docData.rut = cotizacion.rut ?? null;
+            docData.cotizacion = cotizacion;
+        }
+
+        const doc = await Conciliacion.create(docData);
 
         return { success: true, code: CONCILIATION_CODES.OK, data: doc };
     };
@@ -177,6 +217,46 @@ export default class AdminConciliationService {
                 page: Number(page),
                 limit: Number(limit),
                 cotizaciones: docs.map(mapCotizacionToDto),
+            },
+        };
+    };
+
+    /**
+     * Lista facturas desde MongoDB con filtro opcional por rango de fecha.
+     * GET /api/conciliations/facturas?since=&until=&page=&limit=
+     */
+    listFacturas = async ({ since, until, page = 1, limit = 50 } = {}) => {
+        const filter = {};
+
+        if (since || until) {
+            filter.fecha = {};
+            if (since && isValidYmd(since)) {
+                filter.fecha.$gte = dayjs(since).toDate();
+            }
+            if (until && isValidYmd(until)) {
+                filter.fecha.$lte = dayjs(until).endOf('day').toDate();
+            }
+        }
+
+        const skip = (Math.max(1, page) - 1) * limit;
+
+        const [docs, total] = await Promise.all([
+            Factura.find(filter)
+                .sort({ fecha: -1 })
+                .skip(skip)
+                .limit(limit)
+                .lean(),
+            Factura.countDocuments(filter),
+        ]);
+
+        return {
+            success: true,
+            code: CONCILIATION_CODES.OK,
+            data: {
+                total,
+                page: Number(page),
+                limit: Number(limit),
+                facturas: docs.map(mapFacturaToDto),
             },
         };
     };
