@@ -86,8 +86,8 @@ function mapCotizacionToDto(doc) {
     };
 }
 
-function mapFacturaToDto(doc) {
-    const rutcli = formatRutChile(doc.rutcli, null);
+function mapFacturaToDto(doc, digcli = null) {
+    const rutcli = formatRutChile(doc.rutcli, digcli);
     return {
         factura: doc.factura,
         cotizacion_ref: doc.cotizacion ?? null,
@@ -249,6 +249,17 @@ export default class AdminConciliationService {
             Factura.countDocuments(filter),
         ]);
 
+        // Obtener digcli de las cotizaciones asociadas
+        const cotizacionIds = [...new Set(docs.map(d => d.cotizacion).filter(Boolean))];
+        const cotizacionesMap = new Map();
+        if (cotizacionIds.length > 0) {
+            const cotizaciones = await Cotizacion.find({ cotizacion: { $in: cotizacionIds } }).select('cotizacion digcli cliente.digcli').lean();
+            cotizaciones.forEach(c => {
+                const digcli = c.digcli ?? c.cliente?.digcli;
+                cotizacionesMap.set(c.cotizacion, digcli);
+            });
+        }
+
         return {
             success: true,
             code: CONCILIATION_CODES.OK,
@@ -256,7 +267,7 @@ export default class AdminConciliationService {
                 total,
                 page: Number(page),
                 limit: Number(limit),
-                facturas: docs.map(mapFacturaToDto),
+                facturas: docs.map(f => mapFacturaToDto(f, cotizacionesMap.get(f.cotizacion))),
             },
         };
     };
