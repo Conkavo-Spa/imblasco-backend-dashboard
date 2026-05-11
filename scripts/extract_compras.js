@@ -78,7 +78,7 @@ const K = { codpro: 2, fecemi: 3, sale: 5, docto: 10 };
 // ma_product: codpro,descri,coduni,codfam,codgru,codmar,activo,...
 const P = { codpro: 0, descri: 1 };
 // re_bodprod: codbod,codpro,stock,stkcom,stkini,fecini,stktran
-const B = { codpro: 1, stock: 2, stktran: 6 };
+const B = { codpro: 1, stock: 2, stkcom: 3, stktran: 6 };
 
 // ── Acumuladores ──────────────────────────────────────────────────────────────
 const ventas = {};       // { codpro: { [cy-3]: n, ..., [cy]: n } }
@@ -162,12 +162,14 @@ async function main() {
 
         } else if (currentTable === 'bodprod') {
             if (cols.length <= B.stktran) continue;
-            const codpro = stripQuotes(cols[B.codpro]);
-            const stock  = toNum(cols[B.stock]);
+            const codpro  = stripQuotes(cols[B.codpro]);
+            const stock   = toNum(cols[B.stock]);
+            const stkcom  = toNum(cols[B.stkcom]);
             const stktran = toNum(cols[B.stktran]);
-            if (!stockMap[codpro]) stockMap[codpro] = { stock: 0, porEmbarcar: 0 };
+            if (!stockMap[codpro]) stockMap[codpro] = { stock: 0, porEmbarcar: 0, embarcado: 0 };
             stockMap[codpro].stock       += stock;
-            stockMap[codpro].porEmbarcar += stktran;
+            stockMap[codpro].porEmbarcar += stkcom;
+            stockMap[codpro].embarcado   += stktran;
         }
     }
 
@@ -179,12 +181,13 @@ async function main() {
     // ── Función para armar un producto ───────────────────────────────────────
     const buildProducto = (codpro, años) => {
         const cy = CURRENT_YEAR;
-        const s  = stockMap[codpro] || { stock: 0, porEmbarcar: 0 };
+        const s  = stockMap[codpro] || { stock: 0, porEmbarcar: 0, embarcado: 0 };
         const producto = {
             cod: codpro,
             nombre: nombres[codpro] || `Producto ${codpro}`,
             stock: s.stock,
             porEmbarcar: s.porEmbarcar,
+            embarcado: s.embarcado,
         };
         for (let y = cy - 3; y <= cy; y++) producto[`y${y}`] = años[y] || 0;
         producto.sugerencia = calcularSugerencia({
@@ -219,12 +222,13 @@ async function main() {
         const ultimoAno = ultimaVenta[codpro] || 0;
         if (ultimoAno < CURRENT_YEAR - 4) return;  // excluir dormidos/obsoletos
         const v = ventas[codpro] || {};
-        const s = stockMap[codpro] || { stock: 0, porEmbarcar: 0 };
+        const s = stockMap[codpro] || { stock: 0, porEmbarcar: 0, embarcado: 0 };
         const item = {
             cod: codpro,
             nombre: nombres[codpro],
             stock: s.stock,
             porEmbarcar: s.porEmbarcar,
+            embarcado: s.embarcado,
             ultimoAno,
         };
         for (let y = CURRENT_YEAR - 3; y <= CURRENT_YEAR; y++) item[`y${y}`] = v[y] || 0;

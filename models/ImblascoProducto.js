@@ -5,6 +5,7 @@ const imblascoProductoSchema = new mongoose.Schema({
     nombre:      { type: String, default: '' },
     stock:       { type: Number, default: 0 },
     porEmbarcar: { type: Number, default: 0 },
+    embarcado:   { type: Number, default: 0 },
     y2023:       { type: Number, default: 0 },
     y2024:       { type: Number, default: 0 },
     y2025:       { type: Number, default: 0 },
