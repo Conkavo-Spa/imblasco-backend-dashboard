@@ -3,6 +3,7 @@ import { fileURLToPath } from 'url';
 import path from 'path';
 import Pedido from '../../models/Pedido.js';
 import ImblascoProducto from '../../models/ImblascoProducto.js';
+import SyncTrigger from '../../models/SyncTrigger.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -94,7 +95,13 @@ export default class AdminComprasService {
 
         if (!todos.length) return { success: true, data: { productos: [], actualizadoEl: null } };
 
-        const actualizadoEl = todos[0]?.syncedAt ?? null;
+        const syncedAt = todos[0]?.syncedAt ?? null;
+        const ultimoTrigger = await SyncTrigger.findOne({ status: 'done' })
+            .sort({ requestedAt: -1 }).lean();
+        const triggerAt = ultimoTrigger?.completedAt ?? ultimoTrigger?.requestedAt ?? null;
+        const actualizadoEl = syncedAt && triggerAt
+            ? (new Date(triggerAt) > new Date(syncedAt) ? triggerAt : syncedAt)
+            : (triggerAt ?? syncedAt);
 
         const pedidos = await Pedido.find().lean();
         const confirmadosMap  = {};
