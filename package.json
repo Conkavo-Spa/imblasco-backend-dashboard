@@ -5,9 +5,9 @@
   "main": "server.js",
   "type": "module",
   "scripts": {
-    "start": "ENV_FILE=.env.production node server.js",
-    "staging": "ENV_FILE=.env.staging node server.js",
-    "dev": "ENV_FILE=.env.development nodemon server.js"
+    "start": "cross-env ENV_FILE=.env.production node server.js",
+    "staging": "cross-env ENV_FILE=.env.staging node server.js",
+    "dev": "cross-env ENV_FILE=.env.development nodemon server.js"
   },
   "keywords": [],
   "author": "",
@@ -33,6 +33,7 @@
     "transbank-sdk": "^6.1.0"
   },
   "devDependencies": {
+    "cross-env": "^10.1.0",
     "nodemon": "^3.1.10"
   }
 }
