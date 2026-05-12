@@ -472,12 +472,6 @@ export default class AdminConciliationService {
                 return postDate >= sinceDate && postDate <= untilDate;
             });
 
-            filtered.sort((a, b) => {
-                const da = String(a.post_date || '');
-                const db = String(b.post_date || '');
-                return db.localeCompare(da);
-            });
-
             return {
                 success: true,
                 code: CONCILIATION_CODES.OK,
