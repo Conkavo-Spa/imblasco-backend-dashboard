@@ -413,8 +413,7 @@ export default class AdminConciliationService {
         dtos.sort((a, b) => {
             const da = String(a.post_date || '');
             const db = String(b.post_date || '');
-            if (da !== db) return db.localeCompare(da);
-            return (b.amount || 0) - (a.amount || 0);
+            return db.localeCompare(da);
         });
 
         return {
