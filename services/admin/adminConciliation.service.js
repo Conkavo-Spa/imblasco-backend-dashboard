@@ -471,6 +471,10 @@ export default class AdminConciliationService {
                 return postDate >= sinceDate && postDate <= untilDate;
             });
 
+            filtered.sort((a, b) =>
+                String(b.post_date || '').localeCompare(String(a.post_date || ''))
+            );
+
             return {
                 success: true,
                 code: CONCILIATION_CODES.OK,
