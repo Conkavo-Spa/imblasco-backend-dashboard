@@ -87,10 +87,12 @@ function mapCotizacionToDto(doc) {
 }
 
 function mapFacturaToDto(doc, digcli = null) {
-    const rutcli = formatRutChile(doc.rutcli, digcli);
+    const digcliVal = doc.cliente?.digcli ?? digcli;
+    const rutcli = formatRutChile(doc.rutcli, digcliVal);
     return {
         factura: doc.factura,
         cotizacion_ref: doc.cotizacion ?? null,
+        razon_social: doc.cliente?.razon_social ?? null,
         rutcli,
         fecha: doc.fecha ? dayjs(doc.fecha).format('YYYY-MM-DD') : null,
         monto: doc.totgen ?? null,
@@ -162,6 +164,29 @@ export default class AdminConciliationService {
         const doc = await Conciliacion.create(docData);
 
         return { success: true, code: CONCILIATION_CODES.OK, data: doc };
+    };
+
+    /**
+     * Elimina una conciliación por su _id de MongoDB.
+     * DELETE /api/conciliations/:id
+     */
+    deleteConciliacion = async (id) => {
+        if (!id) {
+            return {
+                success: false,
+                code: CONCILIATION_CODES.INVALID_ID,
+                message: 'Se requiere el id de la conciliación',
+            };
+        }
+        const deleted = await Conciliacion.findByIdAndDelete(id);
+        if (!deleted) {
+            return {
+                success: false,
+                code: CONCILIATION_CODES.NOT_FOUND,
+                message: `Conciliación ${id} no encontrada`,
+            };
+        }
+        return { success: true, code: CONCILIATION_CODES.OK, data: { id } };
     };
 
     /**
@@ -486,6 +511,46 @@ export default class AdminConciliationService {
                 success: false,
                 code: CONCILIATION_CODES.FINTOC_ERROR,
                 message: e.message || 'Error al leer archivo JSON',
+            };
+        }
+    };
+
+    /**
+     * GET /api/conciliations/facturas/:facturaId/detalle
+     * Retorna la factura completa con array de productos (detalle).
+     * El detalle se popula via el script enrich_facturas_detalle.js.
+     */
+    getFacturaDetalle = async (facturaId) => {
+        const idNum = Number(String(facturaId ?? '').trim());
+        if (!idNum || isNaN(idNum)) {
+            return {
+                success: false,
+                code: CONCILIATION_CODES.INVALID_ID,
+                message: 'El id de factura debe ser un número válido',
+            };
+        }
+
+        try {
+            const factura = await Factura.findOne({ factura: idNum }).lean();
+            if (!factura) {
+                return {
+                    success: false,
+                    code: CONCILIATION_CODES.NOT_FOUND,
+                    message: `Factura ${idNum} no encontrada`,
+                };
+            }
+
+            return {
+                success: true,
+                code: CONCILIATION_CODES.OK,
+                data: factura,
+            };
+        } catch (e) {
+            console.error('❌ AdminConciliationService — getFacturaDetalle:', e);
+            return {
+                success: false,
+                code: CONCILIATION_CODES.FINTOC_ERROR,
+                message: e.message || 'Error al obtener detalle de factura',
             };
         }
     };

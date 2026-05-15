@@ -14,8 +14,8 @@ export default class AdminConciliationController {
      */
     saveConciliacion = async (req, res) => {
         try {
-            const { movement, cotizacion } = req.body ?? {};
-            const result = await adminConciliationService.saveConciliacion({ movement, cotizacion });
+            const { movement, cotizacion, factura, document_type } = req.body ?? {};
+            const result = await adminConciliationService.saveConciliacion({ movement, cotizacion, factura, document_type });
 
             if (!result.success) {
                 const status = HTTP_STATUS_BY_CONCILIATION_CODE[result.code] || 400;
@@ -25,6 +25,24 @@ export default class AdminConciliationController {
             return res.status(201).json({ success: true, code: result.code, data: result.data });
         } catch (error) {
             console.error('❌ AdminConciliationController — saveConciliacion:', error);
+            return res.status(500).json({ success: false, code: CONCILIATION_CODES.INTERNAL_ERROR, message: error.message });
+        }
+    };
+
+    /**
+     * DELETE /api/conciliations/:id
+     */
+    deleteConciliacion = async (req, res) => {
+        try {
+            const { id } = req.params;
+            const result = await adminConciliationService.deleteConciliacion(id);
+            if (!result.success) {
+                const status = HTTP_STATUS_BY_CONCILIATION_CODE[result.code] || 400;
+                return res.status(status).json({ success: false, code: result.code, message: result.message });
+            }
+            return res.status(200).json({ success: true, code: result.code, data: result.data });
+        } catch (error) {
+            console.error('❌ AdminConciliationController — deleteConciliacion:', error);
             return res.status(500).json({ success: false, code: CONCILIATION_CODES.INTERNAL_ERROR, message: error.message });
         }
     };
@@ -91,6 +109,38 @@ export default class AdminConciliationController {
             return res.status(200).json(result);
         } catch (error) {
             console.error('❌ AdminConciliationController — listFacturas:', error);
+            return res.status(500).json({
+                success: false,
+                code: CONCILIATION_CODES.INTERNAL_ERROR,
+                message: error.message || 'Error inesperado en el servidor',
+            });
+        }
+    };
+
+    /**
+     * GET /api/conciliations/facturas/:facturaId/detalle
+     */
+    getFacturaDetalle = async (req, res) => {
+        try {
+            const { facturaId } = req.params;
+            const result = await adminConciliationService.getFacturaDetalle(facturaId);
+
+            if (!result.success) {
+                const status = HTTP_STATUS_BY_CONCILIATION_CODE[result.code] || 400;
+                return res.status(status).json({
+                    success: false,
+                    code: result.code,
+                    message: result.message,
+                });
+            }
+
+            return res.status(200).json({
+                success: true,
+                code: result.code,
+                data: result.data,
+            });
+        } catch (error) {
+            console.error('❌ AdminConciliationController — getFacturaDetalle:', error);
             return res.status(500).json({
                 success: false,
                 code: CONCILIATION_CODES.INTERNAL_ERROR,

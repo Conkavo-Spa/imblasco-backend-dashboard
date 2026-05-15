@@ -10,6 +10,9 @@ router.post('/conciliations/conciliar', controller.saveConciliacion);
 // Lista todas las conciliaciones guardadas
 router.get('/conciliations/historial', controller.listConciliaciones);
 
+// Elimina una conciliación por su _id
+router.delete('/conciliations/:id', controller.deleteConciliacion);
+
 // Lista cotizaciones desde MongoDB (cotizaciones_emitidas)
 router.get('/conciliations/cotizaciones', controller.listCotizaciones);
 
@@ -18,6 +21,9 @@ router.get('/conciliations/facturas', controller.listFacturas);
 
 // Retorna cotización completa con detalle (productos)
 router.get('/conciliations/cotizaciones/:cotizacionId/detalle', controller.getCotizacionDetalle);
+
+// Retorna factura completa con detalle (productos, tras correr enrich_facturas_detalle.js)
+router.get('/conciliations/facturas/:facturaId/detalle', controller.getFacturaDetalle);
 
 // Cruza una cotización de MongoDB contra transferencias Fintoc
 router.get('/conciliations/cotizaciones/:cotizacionId/payment-status', controller.getQuotePaymentStatus);
